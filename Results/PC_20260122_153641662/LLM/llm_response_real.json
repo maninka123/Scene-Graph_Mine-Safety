@@ -1,0 +1,30 @@
+{
+  "insights": [
+    {
+      "object_id": 0,
+      "generated_label": "Chocks",
+      "reasoning": "Object 0 is a large_machine_or_structure with dimensions 1.0x1.5x5.5, similar to Chocks, which are typically large rectangular structures arranged in a consistent row with uniform spacing."
+    },
+    {
+      "object_id": 1,
+      "generated_label": "Chocks",
+      "reasoning": "Object 1 is a large_machine_or_structure with dimensions 2.3x1.2x2.8, similar to Chocks, which are typically large rectangular structures arranged in a consistent row with uniform spacing."
+    },
+    {
+      "object_id": 2,
+      "generated_label": "Unknown",
+      "reasoning": "Object 2 is an unknown_object with dimensions 0.2x0.4x4.7, positioned at [3.1, -0.6, 0.0]. It does not fit the typical dimensions or arrangement of Chocks or Shearer."
+    },
+    {
+      "object_id": 3,
+      "generated_label": "Unknown",
+      "reasoning": "Object 3 is an unknown_object with dimensions 0.6x0.4x4.5, positioned at [4.3, -0.4, 1.2]. It does not fit the typical dimensions or arrangement of Chocks or Shearer."
+    },
+    {
+      "object_id": 4,
+      "generated_label": "Shearer",
+      "reasoning": "Object 4 is a large_machine_or_structure with dimensions 0.5x0.2x2.8, positioned at [2.7, -1.7, -0.1]. It is a very large mobile machine, often longer than a chock, positioned along the face."
+    }
+  ],
+  "safety_assessment": "All detected objects are within 1.0m of Shearer, which violates the safety rule that requires humans or obstacles to not be within 1.0m of the Shearer during operation."
+}
