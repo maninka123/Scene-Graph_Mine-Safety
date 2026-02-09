@@ -3,7 +3,7 @@ import torch
 import json
 import os
 
-def query_local_llm(prompt_file, output_dir, model_name="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"):
+def query_local_llm(prompt_file, output_dir, model_name="Qwen/Qwen2.5-7B-Instruct"):
     """
     Runs the local LLM using the provided prompt file.
     Saves the response to output_dir.
@@ -15,10 +15,9 @@ def query_local_llm(prompt_file, output_dir, model_name="deepseek-ai/DeepSeek-R1
     print(f"{'='*40}\n")
     
     # 1. Setup Paths
-    # Model Cache: Centralized in root/LLM/DeepSeek_Model (NOT in Results)
-    # We assume this script is running from the root, so we look for "LLM" in CWD
+    # Model Cache: Centralized in root/LLM/Model_Cache (NOT in Results)
     root_llm_dir = os.path.join(os.getcwd(), "LLM") 
-    model_cache_dir = os.path.join(root_llm_dir, "DeepSeek_Model")
+    model_cache_dir = os.path.join(root_llm_dir, "Model_Cache")
     
     # Output: Saved in the specific Results folder
     llm_sub_dir = os.path.join(output_dir, "LLM")
@@ -37,24 +36,24 @@ def query_local_llm(prompt_file, output_dir, model_name="deepseek-ai/DeepSeek-R1
         print(f"[ERROR] Prompt file not found: {prompt_file}")
         return None
 
-    # Clean up root prompt if it exists (User request)
+    # Clean up root prompt if it exists
     root_prompt = "llm_prompt.txt"
     if os.path.exists(root_prompt) and os.path.abspath(root_prompt) != os.path.abspath(prompt_file):
         try:
             os.remove(root_prompt)
-            print(f"         (Cleaned up redundant {root_prompt})")
         except:
             pass
 
     # 3. Load Model
     print(f"[STEP 2] Loading Model: {model_name}...")
-    print(f"         Using Centralized Cache: {model_cache_dir}")
+    print(f"         Cache Directory: {model_cache_dir}")
+    print(f"         (First run will download ~14GB)")
     
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=model_cache_dir)
         model = AutoModelForCausalLM.from_pretrained(
             model_name, 
-            torch_dtype=torch.float16, 
+            torch_dtype=torch.bfloat16,  # Qwen2.5 works best with bfloat16
             device_map="auto",
             cache_dir=model_cache_dir
         )
@@ -62,10 +61,14 @@ def query_local_llm(prompt_file, output_dir, model_name="deepseek-ai/DeepSeek-R1
         print(f"[ERROR] Failed to load model: {e}")
         return None
 
-    # 4. Format Prompt
+    # 4. Format Prompt (Optimized for Qwen2.5 Instruct)
+    system_prompt = """You are a mining safety expert. Analyze the 3D scene data and output ONLY valid JSON.
+Do NOT include any explanations, thinking, or text outside the JSON object.
+Output format: {"insights": [{"object_id": int, "generated_label": string, "reasoning": string}, ...], "safety_assessment": string}"""
+    
     messages = [
-        {"role": "system", "content": "You are an expert mining engineer. Output valid JSON only. NO conversational text. ENSURE COMMAS BETWEEN ALL FIELDS AND OBJECTS."},
-        {"role": "user", "content": prompt_content + "\n\nProvide your analysis in JSON format with keys: 'insights' (list of objects with 'object_id', 'generated_label', 'reasoning') and 'safety_assessment' (string)."}
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt_content}
     ]
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     
@@ -76,18 +79,18 @@ def query_local_llm(prompt_file, output_dir, model_name="deepseek-ai/DeepSeek-R1
     with torch.no_grad():
         generated_ids = model.generate(
             **inputs,
-            max_new_tokens=2048, # Enough for Chain-of-Thought + JSON
-            temperature=0.1,
-            do_sample=False
+            max_new_tokens=1024,  # Qwen is concise, doesn't need as much
+            do_sample=False,
+            pad_token_id=tokenizer.eos_token_id
         )
         
     # Decode only the new tokens
     new_tokens = generated_ids[0][len(inputs.input_ids[0]):]
     response_text = tokenizer.decode(new_tokens, skip_special_tokens=True)
     
-    print("\n--- LLM Reasoning (Chain of Thought / Raw) ---")
-    print(response_text[:800] + "...\n[...truncating for readability...]")
-    print("----------------------------------------------\n")
+    print("\n--- LLM Response ---")
+    print(response_text[:1000] if len(response_text) > 1000 else response_text)
+    print("--------------------\n")
 
     # 6. Robust JSON Extraction & Repair
     def repair_json(json_str):

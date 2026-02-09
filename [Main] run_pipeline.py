@@ -25,7 +25,7 @@ class Config:
     GRAPH_DIST_THRESHOLD = 2.5
     
     # LLM
-    LLM_MODEL = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 def main():
     print(f"\n{'#'*60}")

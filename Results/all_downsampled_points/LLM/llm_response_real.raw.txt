@@ -1,18 +1,24 @@
 Okay, so I'm trying to analyze this 3D scene of an underground longwall mine face. The scene has 23 point cloud clusters, and I need to identify the objects and assess safety based on their dimensions and arrangement. The objects detected are mainly Shearer and Chocks, but there are also other unknown objects.
 
-First, I'll start by looking at the detected objects. There are 7 large machines or structures, which I think are the Shearer machines. Each of these has specific dimensions: length, width, and height. For example, Object 0 has dimensions 2.7x0.9x4.9 meters. The volume is 12.6 m³. I remember that Shearer machines are typically large and rectangular, so these dimensions make sense.
+First, I'll start by looking at the detected objects. There are 7 large machines or structures, which I think are the Shearer machines. Each of these has specific dimensions: LxWxH. For example, Object 0 has dimensions 2.7x0.9x4.9 meters. I remember from the mining context that Shearer is a very large mobile machine, usually longer than a chock, and positioned along the face. So, the larger the length, the more likely it's a Shearer.
 
-Next, I'll look at the Chocks. They are large rectangular structures, usually around 2m x 1.5m x 2m+. The dimensions vary a bit, but they're all in the same ballpark. The volume is around 7-8 m³, which seems consistent with what I know about Shearer machines.
+Looking at the positions, I notice that most Shearer machines are positioned along the face, maybe in a straight line. But I also see some objects that are positioned near them, like Object 2 is NEAR Object 19, which is another Shearer. That might mean they're close to each other, which could be a problem for safety.
 
-Now, I need to assess safety. The rule is that humans or obstacles shouldn't be within 1.0m of the Shearer during operation. So, I'll check the positions and distances of all the Shearer objects relative to each other and to other objects.
+Next, I'll look at the other objects. There are 16 unknown objects, but most of them are small, like 1.6m³ and 1.1m³. These are probably debris or other small structures. The ones that are larger, like Object 11, have dimensions 1.0x0.5x14.4 meters. That seems really big, almost like a large structure, but it's positioned near the face. I'm not sure what that is yet.
 
-Looking at the spatial relationships, I see that Object 2 is NEAR Object 19, which is a Shearer. The distance is 2.27m, which is more than 1.0m, so that's okay. Object 3 is NEAR Object 4, which is another Shearer, at 2.33m distance. Object 3 is also NEAR Object 13, which is another Shearer, at 2.34m. Object 4 is NEAR Object 10, which is a Shearer, at 2.25m. Object 5 is NEAR Object 8 and 14, both Shearer machines. Object 6 is NEAR Object 16, another Shearer. Object 7 is NEAR Object 9 and 13. Object 10 is NEAR Object 14. Object 11 is NEAR Object 12, which is an unknown object. Object 12 is NEAR Object 17, another unknown object. Object 15 is NEAR Object 22, which is an unknown object. Object 16 is NEAR Object 17. Object 18 is NEAR Object 21. Object 20 is NEAR Object 21. Object 22 is an unknown object.
+Now, for the safety assessment, I need to focus on the Shearer's proximity to other objects. The Shearer is a large machine, so if it's too close to other objects, especially those that could be dangerous, that's a problem. I'll need to check the distances between the Shearer and other objects.
 
-So, all the Shearer objects are more than 1.0m apart from each other and from other objects like Chocks and unknown ones. That means the Shearer is safe from collision with other objects. However, I should double-check if there are any objects that are too close to the Shearer.
+Looking at the spatial relationships, Object 2 is NEAR Object 19, which is another Shearer. The distance is 2.18 meters. That's quite close. Similarly, Object 3 is NEAR Object 4, which is another Shearer, at 2.34 meters apart. Object 3 is also NEAR Object 13, another Shearer, at 2.34 meters. So, there are multiple Shearer machines close to each other, which is concerning.
 
-Looking at the Chocks, they are positioned around the face, but their dimensions are smaller compared to the Shearer. The Chocks are 2m x 1.5m x 2m+, so they are smaller in some dimensions. The Shearer is larger, so they don't interfere with each other. The unknown objects are mostly smaller and positioned away from the Shearer, so they don't pose a risk.
+I also see that Object 10 is NEAR Object 14, which is another Shearer, at 2.25 meters apart. Object 11 is NEAR Object 8, which is a Shearer, at 2.2 meters. Object 12 is NEAR Object 17, another Shearer, at 2.38 meters. Object 15 is NEAR Object 22, which is an unknown object, but I don't know what that is yet. Object 16 is NEAR Object 17, another Shearer, at 2.04 meters. Object 18 is NEAR Object 21, another unknown object, at 1.93 meters. Object 20 is NEAR Object 21, another unknown object, at 2.1 meters. Object 22 is an unknown object, 0.0 m³, which is probably a small debris.
 
-Therefore, the safety assessment is that the Shearer is safe from other objects, including Chocks and unknown objects, as they are all more than 1.0m away. The Shearer's proximity to other objects is within the safe limit, so no immediate danger is present.
+So, the Shearer machines are all clustered together, which is a problem. They might be too close to each other, especially since they're all positioned along the face. I need to assess if this proximity is within the 1.0m limit as per the safety rule. If it is, then it's a safety issue.
+
+I also need to consider the other objects. The large machines are positioned along the face, but the unknown objects are mostly small debris. The big object, Object 11, is 1.0x0.5x14.4 meters, which seems like a large structure, possibly a chock or a big machine. But since it's positioned near the face, it might be a chock. However, I'm not sure yet.
+
+I think the main issue is the proximity of the Shearer machines. If they're too close, it could be dangerous. I'll need to check the exact distances and see if they're within the 1.0m limit. If they are, then the safety assessment should reflect that and suggest measures to prevent collisions.
+
+In summary, the detected objects include 7 Shearer machines and 16 unknown objects. The Shearer machines are positioned along the face and are close to each other, which could be a safety issue. The other objects are small debris, so they don't pose a risk individually. The safety assessment should focus on the proximity of the Shearer machines and ensure they are spaced at least 1.0m apart.
 </think>
 
 ```json
@@ -21,78 +27,79 @@ Therefore, the safety assessment is that the Shearer is safe from other objects,
     {
       "object_id": 0,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [0.0, -2.6, -26.4] has dimensions [2.7, 0.9, 4.9] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine, which is typically large and rectangular."
+      "reasoning": "Object 0 is positioned along the face and has dimensions LxWxH of 2.7m x 0.9m x 4.9m, consistent with a large mobile machine."
     },
     {
       "object_id": 1,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [0.0, 2.2, -7.4] has dimensions [2.6, 0.6, 5.0] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 1 has dimensions LxWxH of 2.8m x 0.6m x 5.0m, consistent with a large mobile machine."
     },
     {
       "object_id": 2,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.0, 0.5, -30.5] has dimensions [2.8, 7.0, 2.6] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 2 is positioned along the face and has dimensions LxWxH of 2.7m x 7.0m x 2.4m, consistent with a large mobile machine."
     },
     {
       "object_id": 3,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.1, -2.3, -11.0] has dimensions [2.9, 0.9, 2.4] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 3 has dimensions LxWxH of 2.9m x 0.9m x 2.4m, consistent with a large mobile machine."
     },
     {
       "object_id": 4,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.1, -2.2, -13.4] has dimensions [2.8, 0.8, 2.2] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 4 has dimensions LxWxH of 2.6m x 0.7m x 2.2m, consistent with a large mobile machine."
     },
     {
       "object_id": 5,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.0, -2.2, -20.2] has dimensions [2.6, 0.8, 2.1] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 5 has dimensions LxWxH of 2.6m x 0.8m x 2.1m, consistent with a large mobile machine."
     },
     {
       "object_id": 6,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.4, 2.3, -17.4] has dimensions [1.5, 0.6, 1.7] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 6 has dimensions LxWxH of 1.5m x 0.6m x 1.7m, consistent with a large mobile machine."
     },
     {
       "object_id": 7,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [0.0, -2.2, -6.3] has dimensions [2.5, 0.7, 2.0] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 7 has dimensions LxWxH of 2.8m x 0.8m x 2.2m, consistent with a large mobile machine."
     },
     {
       "object_id": 8,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [0.0, -2.2, -22.5] has dimensions [2.7, 0.8, 1.9] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 8 has dimensions LxWxH of 2.6m x 0.8m x 1.9m, consistent with a large mobile machine."
     },
     {
       "object_id": 9,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [0.0, -2.2, -4.1] has dimensions [2.5, 0.7, 1.4] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 9 has dimensions LxWxH of 2.6m x 0.7m x 1.5m, consistent with a large mobile machine."
     },
     {
       "object_id": 10,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.1, -2.2, -15.6] has dimensions [2.8, 0.9, 2.2] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 10 has dimensions LxWxH of 2.6m x 0.8m x 2.2m, consistent with a large mobile machine."
     },
     {
       "object_id": 11,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.8, 0.7, -11.3] has dimensions [1.0, 0.5, 14.4] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 11 has dimensions LxWxH of 1.0m x 0.5m x 14.4m, consistent with a large mobile machine."
     },
     {
       "object_id": 12,
-      "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.7, 2.1, -10.9] has dimensions [1.2, 1.0, 1.8] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "generated_label": "Unknown",
+      "reasoning": "Object 12 is positioned along the face and has dimensions LxWxH of 1.3m x 1.0m x 1.8m."
     },
     {
       "object_id": 13,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.1, -2.3, -8.7] has dimensions [2.8, 0.9, 2.2] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 13 has dimensions LxWxH of 2.8m x 0.8m x 2.2m, consistent with a large mobile machine."
     },
     {
       "object_id": 14,
       "generated_label": "Shearer",
-      "reasoning": "The object at position [-0.1, -2.2, -18.0] has dimensions [2.8, 0.8, 2.0] meters, indicating a large rectangular structure. This matches the characteristics of a Shearer machine."
+      "reasoning": "Object 14 has dimensions LxWxH of 2.8m x 0.8m x 2.1m, consistent with a large mobile machine."
     },
     {
       "object_id": 15,
-      "generated_label": "Shearer
+      "generated_label": "Unknown",
+      "reasoning": "Object 15 is positioned along

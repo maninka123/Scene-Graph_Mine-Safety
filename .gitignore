@@ -1,8 +1,8 @@
 # Datasets/
 Datasets/**
 
-# LLM Model Weights (Large)
-LLM/DeepSeek_Model/**
+# LLM Model Weights (Large - DO NOT UPLOAD)
+LLM/
 
 # Python
 __pycache__/
