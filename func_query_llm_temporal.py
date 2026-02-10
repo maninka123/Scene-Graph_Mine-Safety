@@ -42,7 +42,8 @@ def query_llm_temporal(prompt_file, output_dir, model_name="Qwen/Qwen2.5-7B-Inst
         tokenizer = AutoTokenizer.from_pretrained(model_name, cache_dir=model_cache_dir)
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            torch_dtype=torch.bfloat16,
+            # Fix: use 'dtype' instead of 'torch_dtype'
+            torch_dtype=torch.bfloat16, 
             device_map="auto",
             cache_dir=model_cache_dir
         )
@@ -64,22 +65,50 @@ Do NOT include any explanations or text outside the JSON object."""
     
     # 5. Generate
     print(f"[STEP 3] Generating Temporal Analysis (Running on GPU)...")
+    import time
+    start_time = time.time()
+    
     inputs = tokenizer([text], return_tensors="pt").to(model.device)
+    input_token_count = len(inputs.input_ids[0])
     
     with torch.no_grad():
         generated_ids = model.generate(
             **inputs,
             max_new_tokens=1500,  # More tokens for temporal analysis
-            do_sample=False,
+            do_sample=False,      # Deterministic (Greedy Search)
+            # Removed invalid flags for greedy search (temperature, top_p, top_k)
             pad_token_id=tokenizer.eos_token_id
         )
     
+    end_time = time.time()
+    inference_time = end_time - start_time
+    
     new_tokens = generated_ids[0][len(inputs.input_ids[0]):]
+    output_token_count = len(new_tokens)
     response_text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    
+    # Performance Stats
+    tokens_per_sec = output_token_count / inference_time if inference_time > 0 else 0
+    perf_stats = (
+        f"Input Tokens:  {input_token_count}\n"
+        f"Output Tokens: {output_token_count}\n"
+        f"Total Time:    {inference_time:.2f} sec\n"
+        f"Speed:         {tokens_per_sec:.2f} tokens/sec"
+    )
+    
+    print("\n--- LLM Performance ---")
+    print(perf_stats)
+    print("-----------------------\n")
     
     print("\n--- LLM Response ---")
     print(response_text[:1200] if len(response_text) > 1200 else response_text)
     print("--------------------\n")
+
+    # Save Raw Response
+    raw_response_file = os.path.join(llm_sub_dir, "llm_raw_output.txt")
+    with open(raw_response_file, "w", encoding="utf-8") as f:
+        f.write(f"=== PERFORMANCE METRICS ===\n{perf_stats}\n\n=== RAW RESPONSE ===\n{response_text}")
+    print(f"[SUCCESS] Saved raw LLM output to: {raw_response_file}")
 
     # 6. JSON Extraction & Repair
     def repair_json(json_str):
@@ -119,34 +148,52 @@ Do NOT include any explanations or text outside the JSON object."""
             json.dump(data, f, indent=2)
         print(f"[SUCCESS] Saved temporal insights to: {output_response_file}")
         
-        # 7. Pretty Print Temporal Results
-        print(f"\n{'='*50}")
-        print(f"      TEMPORAL LLM ANALYSIS REPORT")
-        print(f"{'='*50}")
+        # 7. Pretty Print Temporal Results & Save Report
+        report_lines = []
+        report_lines.append(f"{'='*50}")
+        report_lines.append(f"      TEMPORAL LLM ANALYSIS REPORT")
+        report_lines.append(f"{'='*50}")
+        
+        # Add Performance Metrics to Report
+        report_lines.append(f"\n[PERFORMANCE METRICS]:")
+        report_lines.append(f"  Input Tokens:  {input_token_count}")
+        report_lines.append(f"  Output Tokens: {output_token_count}")
+        report_lines.append(f"  Inference Time: {inference_time:.2f} sec")
+        report_lines.append(f"  Generation Speed: {tokens_per_sec:.2f} tokens/sec")
         
         # Movement Analysis
         if "movement_analysis" in data:
-            print(f"\n[MOVEMENT ANALYSIS]:")
-            print(f"  {data['movement_analysis']}")
+            report_lines.append(f"\n[MOVEMENT ANALYSIS]:")
+            report_lines.append(f"  {data['movement_analysis']}")
         
         # Safety Assessment
         if "temporal_safety_assessment" in data:
-            print(f"\n[TEMPORAL SAFETY ASSESSMENT]:")
-            print(f"  {data['temporal_safety_assessment']}")
+            report_lines.append(f"\n[TEMPORAL SAFETY ASSESSMENT]:")
+            report_lines.append(f"  {data['temporal_safety_assessment']}")
         
         # Object Identifications
         if "object_identifications" in data:
-            print(f"\n[OBJECT IDENTIFICATIONS]:")
+            report_lines.append(f"\n[OBJECT IDENTIFICATIONS]:")
             for item in data.get("object_identifications", []):
                 track_id = item.get('track_id', '?')
                 identified = item.get('identified_as', 'Unknown')
                 confidence = item.get('confidence', 'N/A')
                 reasoning = item.get('reasoning', '')
-                print(f"  • Track {track_id}: {identified} (Confidence: {confidence})")
+                report_lines.append(f"  • Track {track_id}: {identified} (Confidence: {confidence})")
                 if reasoning:
-                    print(f"    Reason: {reasoning}")
+                    report_lines.append(f"    Reason: {reasoning}")
         
-        print(f"{'='*50}\n")
+        report_lines.append(f"\n{'='*50}\n")
+        
+        # Print to Console
+        full_report = "\n".join(report_lines)
+        print(full_report)
+        
+        # Save to File
+        report_file = os.path.join(llm_sub_dir, "llm_analysis_report.txt")
+        with open(report_file, "w", encoding="utf-8") as f:
+            f.write(full_report)
+        print(f"[SUCCESS] Saved human-readable report to: {report_file}")
         
         return output_response_file
     else:

@@ -204,11 +204,21 @@ def visualize_temporal(dataset_folder, results_dir):
         o3d.io.write_point_cloud(output_pcd, combined_pcd)
         print(f"\n[SUCCESS] Saved visualization to: {output_pcd}")
 
-    # 6. Print LLM Report
+    # 6. Print LLM Report & Append to File
     print(f"\n{'='*50}")
     print(f"      TEMPORAL ANALYSIS SUMMARY")
     print(f"{'='*50}")
-    print(f"\nFrames Analyzed: {summary.get('total_frames', 'N/A')}")
+    
+    summary_lines = []
+    summary_lines.append(f"\n{'='*50}")
+    summary_lines.append(f"      VISUALIZATION SUMMARY")
+    summary_lines.append(f"{'='*50}")
+    summary_lines.append(f"Frames Analyzed: {summary.get('total_frames', 'N/A')}")
+    summary_lines.append(f"Objects Tracked: {summary.get('total_tracks', 'N/A')}")
+    summary_lines.append(f"Moving Objects: {summary.get('moving_objects', 'N/A')}")
+    summary_lines.append(f"Stationary Objects: {summary.get('stationary_objects', 'N/A')}")
+    
+    print(f"Frames Analyzed: {summary.get('total_frames', 'N/A')}")
     print(f"Objects Tracked: {summary.get('total_tracks', 'N/A')}")
     print(f"Moving Objects: {summary.get('moving_objects', 'N/A')}")
     print(f"Stationary Objects: {summary.get('stationary_objects', 'N/A')}")
@@ -231,6 +241,26 @@ def visualize_temporal(dataset_folder, results_dir):
     print(f"  MAGENTA ARROW     = Movement direction")
     print(f"  CYAN LINE         = Object trajectory")
     print(f"{'='*50}\n")
+    
+    summary_lines.append(f"\n{'='*50}")
+    summary_lines.append(f"       LEGEND")
+    summary_lines.append(f"{'='*50}")
+    summary_lines.append(f"  RED BOX/SPHERE    = Shearer (or fast-moving)")
+    summary_lines.append(f"  GREEN BOX/SPHERE  = Hydraulic Chocks")
+    summary_lines.append(f"  BLUE SPHERE       = Stationary objects")
+    summary_lines.append(f"  YELLOW SPHERE     = Slow-moving objects")
+    summary_lines.append(f"  MAGENTA ARROW     = Movement direction")
+    summary_lines.append(f"  CYAN LINE         = Object trajectory")
+    summary_lines.append(f"{'='*50}\n")
+    
+    # Append to existing report file
+    report_file = os.path.join(results_dir, "LLM", "llm_analysis_report.txt")
+    try:
+        with open(report_file, "a", encoding="utf-8") as f:
+            f.write("\n".join(summary_lines))
+        print(f"[SUCCESS] Appended visual summary to: {report_file}")
+    except Exception as e:
+        print(f"[WARN] Could not append to report file: {e}")
 
     # 7. Open visualization
     print(f"[INFO] Opening 3D Visualization...")

@@ -47,7 +47,7 @@
       "frame_id": 6,
       "timestamp": "20260122_153804453",
       "source_file": "Datasets\\01\\PC_20260122_153804453.pcd",
-      "num_objects": 5,
+      "num_objects": 6,
       "objects_file": "Results\\01\\frames\\frame_06_objects.json"
     },
     {
@@ -110,7 +110,7 @@
       "frame_id": 15,
       "timestamp": "20260122_153937878",
       "source_file": "Datasets\\01\\PC_20260122_153937878.pcd",
-      "num_objects": 4,
+      "num_objects": 5,
       "objects_file": "Results\\01\\frames\\frame_15_objects.json"
     },
     {

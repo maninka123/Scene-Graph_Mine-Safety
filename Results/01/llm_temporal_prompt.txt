@@ -9,8 +9,8 @@ Your task is to:
 ### Temporal Summary
 - Total Frames Analyzed: 18
 - Unique Objects Tracked: 12
-- Objects with Significant Movement: 3
-- Stationary Objects: 9
+- Objects with Significant Movement: 1
+- Stationary Objects: 11
 
 ### Mining Equipment Context
 1. **Hydraulic Supports (Chocks)**: Large rectangular (~2m x 1.5m x 2m+), typically STATIONARY in a row.
@@ -20,7 +20,7 @@ Your task is to:
 ### Tracked Objects (with Movement Analysis)
 
 **Track 0** (large_machine_or_structure):
-  - Volume: 8.38 m³
+  - Volume: 8.45 m³
   - Appeared in frames: 0 to 17 (18 appearances)
   - Movement: STATIONARY
 
@@ -35,21 +35,19 @@ Your task is to:
   - Movement: STATIONARY
 
 **Track 3** (unknown_object):
-  - Volume: 1.32 m³
+  - Volume: 1.28 m³
   - Appeared in frames: 0 to 17 (18 appearances)
   - Movement: STATIONARY
 
 **Track 4** (unknown_object):
-  - Volume: 2.2 m³
-  - Appeared in frames: 0 to 5 (6 appearances)
+  - Volume: 1.5 m³
+  - Appeared in frames: 0 to 10 (11 appearances)
   - Movement: STATIONARY
 
 **Track 5** (unknown_object):
-  - Volume: 0.7 m³
-  - Appeared in frames: 3 to 10 (8 appearances)
-  - Movement: MOVING_FAST
-  - Displacement: 1.122m
-  - Direction: [-0.323, -0.946, -0.018]
+  - Volume: 0.58 m³
+  - Appeared in frames: 3 to 14 (12 appearances)
+  - Movement: STATIONARY
 
 **Track 6** (unknown_object):
   - Volume: 0.12 m³
@@ -57,23 +55,21 @@ Your task is to:
   - Movement: STATIONARY
 
 **Track 7** (unknown_object):
-  - Volume: 0.81 m³
-  - Appeared in frames: 7 to 14 (8 appearances)
-  - Movement: MOVING_SLOW
-  - Displacement: 0.225m
-  - Direction: [1.0, -0.0, 0.012]
-
-**Track 8** (unknown_object):
   - Volume: 0.14 m³
   - Appeared in frames: 11 to 11 (1 appearances)
   - Movement: STATIONARY
 
-**Track 9** (unknown_object):
-  - Volume: 1.62 m³
+**Track 8** (unknown_object):
+  - Volume: 1.85 m³
   - Appeared in frames: 12 to 17 (6 appearances)
   - Movement: MOVING_SLOW
-  - Displacement: 0.268m
-  - Direction: [0.198, -0.042, 0.979]
+  - Displacement: 0.321m
+  - Direction: [-0.285, 0.006, 0.958]
+
+**Track 9** (unknown_object):
+  - Volume: 0.03 m³
+  - Appeared in frames: 15 to 15 (1 appearances)
+  - Movement: STATIONARY
 
 **Track 10** (unknown_object):
   - Volume: 0.33 m³
@@ -86,9 +82,7 @@ Your task is to:
   - Movement: STATIONARY
 
 ### Significant Movement Events
-- Track 5 (unknown_object): Moved 1.12m (moving_fast)
-- Track 7 (unknown_object): Moved 0.22m (moving_slow)
-- Track 9 (unknown_object): Moved 0.27m (moving_slow)
+- Track 8 (unknown_object): Moved 0.32m (moving_slow)
 
 ### Analysis Request
 Return a JSON object with:
