@@ -25,22 +25,25 @@ This project processes raw 3D point cloud data from underground longwall mining 
 
 ```
 Scene-Graph-Mining-Safety/
-├── [Main] run_pipeline.py      # 🚀 Main entry point - run this!
-├── func_segment_clustering.py  # Geometric segmentation (DBSCAN)
-├── func_build_graph.py         # Scene graph construction
-├── func_query_local_llm.py     # Local LLM inference
-├── func_visualize_scene_graph.py # 3D visualization
-├── LLM/                        # LLM model cache (auto-downloaded)
-│   └── Model_Cache/            # Model weights (gitignored)
-├── Results/                    # Output folder (per point cloud)
-│   └── <PCD_Name>/
-│       ├── scene_objects_clustered.json
-│       ├── scene_graph.json
-│       ├── llm_prompt.txt
-│       ├── colored_clusters.pcd
+├── [Main] run_pipeline.py            # 🚀 Single-frame pipeline
+├── [Main] run_temporal_pipeline.py   # 🚀 Temporal (multi-frame) pipeline
+├── func_segment_clustering.py        # Single-frame segmentation
+├── func_segment_clustering_temporal.py # Multi-frame segmentation
+├── func_build_graph.py               # Single-frame graph construction
+├── func_build_temporal_graph.py      # Temporal graph + object tracking
+├── func_query_local_llm.py           # LLM inference (single-frame)
+├── func_query_llm_temporal.py        # LLM inference (temporal)
+├── func_visualize_scene_graph.py     # Single-frame visualization
+├── func_visualize_temporal.py        # Temporal visualization
+├── LLM/                              # LLM model cache (auto-downloaded)
+│   └── Model_Cache/
+├── Results/                          # Output folder
+│   └── <Dataset_Name>/               # Named by dataset (e.g., "01")
+│       ├── frames/                   # Per-frame results (temporal only)
+│       ├── temporal_scene_graph.json
 │       └── LLM/
-│           └── llm_response_real.json
-├── Datasets/                   # Your point cloud data (gitignored)
+├── Datasets/                         # Your point cloud data
+│   └── 01/                           # Example multi-frame dataset
 └── README.md
 ```
 
@@ -101,14 +104,17 @@ class Config:
     LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct"  # Change this line
 ```
 
-### Parameters to Adjust for Larger Models
+### Parameters to Adjust for Different Models
 
-In `func_query_local_llm.py`, you may need to adjust:
+In `func_query_local_llm.py`, you may need to adjust these parameters based on your model choice:
 
-| Parameter        | Small Model (1.5B) | Large Model (7B+) |
-| ---------------- | ------------------ | ----------------- |
-| `torch_dtype`    | `torch.float16`    | `torch.bfloat16`  |
-| `max_new_tokens` | 2048               | 1024              |
+| Parameter        | Reasoning Models (1.5B) | Instruct Models (7B+) | Why?                                                                                                           |
+| ---------------- | ----------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `torch_dtype`    | `torch.float16`         | `torch.bfloat16`      | bfloat16 has better numerical stability for larger models                                                      |
+| `max_new_tokens` | 2048                    | 1024                  | Reasoning models "think out loud" before answering, needing more tokens. Instruct models output JSON directly. |
+| `do_sample`      | `False`                 | `False`               | Deterministic output for consistent JSON                                                                       |
+
+> **💡 Insight**: Smaller "reasoning" models (like DeepSeek-R1) show their chain-of-thought before the final answer, requiring more output tokens. Larger "instruct" models (like Qwen2.5, Llama) follow instructions directly and produce clean JSON without verbose reasoning.
 
 ---
 
@@ -139,11 +145,68 @@ All parameters are centralized in `[Main] run_pipeline.py`:
 
 ---
 
+## 🕐 Temporal Pipeline (Multi-Frame Analysis)
+
+The temporal pipeline processes **sequential point cloud frames** to track objects over time and analyze movements.
+
+### Features
+
+- **Multi-Frame Processing**: Processes all PCD files in a dataset folder
+- **Object Tracking**: Matches objects across frames using centroid-based Hungarian algorithm
+- **Movement Analysis**: Classifies objects as `stationary`, `moving_slow`, or `moving_fast`
+- **Temporal LLM Reasoning**: LLM analyzes movement patterns and provides temporal safety insights
+
+### Quick Start
+
+```bash
+python "[Main] run_temporal_pipeline.py"
+```
+
+### Configuration
+
+Edit `[Main] run_temporal_pipeline.py`:
+
+```python
+class TemporalConfig:
+    DATASET_FOLDER = r"Datasets\01"   # Folder with PCD sequence
+    DATASET_NAME = "01"               # Output folder name
+    MAX_TRACK_DISTANCE = 1.0          # Max distance for object matching
+    MOVEMENT_THRESHOLD = 0.2          # Min displacement to count as "moving"
+```
+
+### Output Structure
+
+```
+Results/01/
+├── frames/
+│   ├── frame_00_objects.json
+│   ├── frame_00_clusters.pcd
+│   └── ...
+├── frame_index.json
+├── temporal_scene_graph.json
+├── llm_temporal_prompt.txt
+├── LLM/
+│   └── llm_temporal_response.json
+└── temporal_visualization.pcd
+```
+
+### Temporal Files
+
+| File                                  | Description                            |
+| ------------------------------------- | -------------------------------------- |
+| `[Main] run_temporal_pipeline.py`     | Main entry point for temporal analysis |
+| `func_segment_clustering_temporal.py` | Multi-frame segmentation               |
+| `func_build_temporal_graph.py`        | Object tracking & movement analysis    |
+| `func_query_llm_temporal.py`          | Temporal LLM inference                 |
+| `func_visualize_temporal.py`          | Movement trajectory visualization      |
+
+---
+
 ## 🔮 Future Work
 
 - [ ] Real-time streaming point cloud processing
 - [ ] Web-based visualization dashboard
-- [ ] Multi-frame temporal scene graphs
+- [x] ~~Multi-frame temporal scene graphs~~ ✅ Implemented!
 
 ---
 
