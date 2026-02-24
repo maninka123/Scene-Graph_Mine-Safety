@@ -15,30 +15,35 @@ This repository follows a two-part logic for underground mining point clouds:
 
 Scene graphs are the main reasoning layer. Segmentation is the upstream stage that provides object regions/labels used by graph construction.
 
-## Project Layout
+## 📁 Project Layout
 
 ```text
-.
-|- [Main] run_pipeline.py
-|- [Main] run_temporal_pipeline.py
-|- func_segment_clustering.py
-|- func_segment_clustering_temporal.py
-|- func_build_graph.py
-|- func_build_temporal_graph.py
-|- func_query_local_llm.py
-|- func_query_llm_temporal.py
-|- func_visualize_scene_graph.py
-|- func_visualize_temporal.py
-|- MinkUNET/
-|  |- configs/
-|  |- scripts/
-|  |- minkunet/
-|  |- checkpoints/
-|  |- logs/
-|  |- data/
-|- Datasets/
-|- Results/
-|- requirements.txt
+Scene-Graph-Mine-Safety/
+├── [Main] run_pipeline.py                 # 🚀 Single-frame pipeline (segment -> graph -> LLM -> visualize)
+├── [Main] run_temporal_pipeline.py        # 🚀 Temporal pipeline (tracking + temporal graph + LLM)
+│
+├── func_segment_clustering.py             # Single-frame geometric segmentation (DBSCAN)
+├── func_segment_clustering_temporal.py    # Multi-frame segmentation across dataset sequence
+├── func_build_graph.py                    # Build single-frame scene graph (nodes + near-edges)
+├── func_build_temporal_graph.py           # Track objects over time + temporal graph construction
+├── func_query_local_llm.py                # Local LLM inference for single-frame graph prompt
+├── func_query_llm_temporal.py             # Local LLM inference for temporal graph prompt
+├── func_visualize_scene_graph.py          # Visualize single-frame graph and labels
+├── func_visualize_temporal.py             # Visualize trajectories and temporal context
+│
+├── MinkUNET/
+│   ├── configs/                           # Training/inference configs
+│   ├── scripts/                           # CLI scripts (train, validate, infer, ablations)
+│   ├── minkunet/                          # Core model/data/engine code
+│   ├── checkpoints/                       # Saved model checkpoints
+│   ├── logs/                              # Metrics, plots, diagnostics
+│   └── data/                              # Manifests and metadata
+│
+├── LLM/
+│   └── Model_Cache/                       # 🤗 Downloaded local model cache
+├── Datasets/                              # Input point cloud datasets
+├── Results/                               # Output artifacts from runs
+└── requirements.txt                       # Python dependencies
 ```
 
 ## A) Scene Graph Pipeline (Main Logic)
