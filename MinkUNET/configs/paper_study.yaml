@@ -1,0 +1,46 @@
+base_config: "MinkUNET/configs/finetune.yaml"
+
+paper_study:
+  output_root: "Results/Paper_Study"
+  run_name: "paper_full"
+
+  # For quick dry-runs, reduce epochs in this file.
+  train:
+    pretrain_epochs: 80
+    finetune_epochs: 100
+    batch_size: null
+
+  assets:
+    pretrained_checkpoint: "MinkUNET/checkpoints/contrastive_best.pt"
+    semantic_checkpoint: "MinkUNET/checkpoints/semantic_best.pt"
+
+  scratch_vs_pretrained:
+    enabled: true
+
+  ablations:
+    voxel_size:
+      enabled: true
+      values: [0.03, 0.05, 0.08]
+    rgb_on_off:
+      enabled: true
+      values: [true, false]
+    labeled_data_size:
+      enabled: true
+      fractions: [0.25, 0.5, 1.0]
+      seed: 42
+    temporal_smoothing:
+      enabled: true
+      windows: [1, 5]
+
+  runtime:
+    enabled: true
+    sweep: "voxel_size"
+    voxel_sizes: [0.03, 0.05, 0.08]
+    frames: 20
+
+  robustness:
+    enabled: true
+    noise_std: 0.03
+    occlusion_ratio: 0.3
+    color_degradation: 0.5
+

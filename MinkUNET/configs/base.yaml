@@ -1,0 +1,62 @@
+seed: 42
+device: "cuda"
+num_workers: 0
+pin_memory: false
+
+data:
+  unlabeled_roots:
+    - "Datasets/Data_all"
+    - "Dataset/Data_all"
+  annotated_root: "Datasets/Annotated"
+  sample_dir: "Datasets/Annotated/sample"
+  manual_cc_dir: "Datasets/Annotated/manual_cc"
+  cluster_proposals_dir: "Datasets/Annotated/cluster_proposals"
+  labels_dir: "Datasets/Annotated/labels"
+  manifests_dir: "MinkUNET/data/manifests"
+  roi:
+    x: [-10.0, 10.0]
+    y: [-10.0, 10.0]
+    z: [-3.0, 3.0]
+  voxel_size: 0.05
+  max_points_train: 120000
+  max_points_eval: 200000
+  normalize_xyz: true
+  normalize_rgb: true
+  use_rgb: true
+
+model:
+  in_channels: 6
+  feature_dim: 96
+  width: 32
+  num_classes: 6
+  class_names:
+    - "wall"
+    - "equipment"
+    - "human"
+    - "conveyor"
+    - "roof"
+    - "other"
+  class_colors:
+    wall: [179, 136, 92]
+    equipment: [255, 80, 80]
+    human: [80, 220, 120]
+    conveyor: [245, 180, 65]
+    roof: [120, 170, 255]
+    other: [120, 120, 255]
+
+train:
+  batch_size: 2
+  epochs: 40
+  lr: 0.001
+  weight_decay: 0.0001
+  amp: true
+  grad_clip_norm: 5.0
+  log_interval: 10
+
+checkpoint:
+  dir: "MinkUNET/checkpoints"
+  save_every: 5
+
+logging:
+  root_dir: "MinkUNET/logs"
+  run_name: ""

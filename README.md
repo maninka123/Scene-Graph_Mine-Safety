@@ -1,227 +1,204 @@
-# 🏭 3D Scene Graph Mining Safety System
+# 3D Mine Scene Understanding: Scene Graphs with Segmentation
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![Open3D](https://img.shields.io/badge/Open3D-0.17+-green?logo=3d-rotation&logoColor=white)](http://www.open3d.org/)
-[![HuggingFace](https://img.shields.io/badge/🤗-Local_LLM-orange)](https://huggingface.co/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![Open3D](https://img.shields.io/badge/Open3D-Point_Cloud-green)](http://www.open3d.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-red?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![MinkowskiEngine](https://img.shields.io/badge/MinkowskiEngine-Sparse_3D-orange)](https://github.com/NVIDIA/MinkowskiEngine)
+[![Transformers](https://img.shields.io/badge/HuggingFace-Transformers-yellow?logo=huggingface&logoColor=black)](https://huggingface.co/docs/transformers)
+[![Scene%20Graph](https://img.shields.io/badge/Scene%20Graph-Spatial%20Reasoning-6f42c1)](#a-scene-graph-pipeline-main-logic)
+[![Segmentation](https://img.shields.io/badge/Segmentation-MinkUNET-0ea5e9)](#b-minkunet-segmentation-pipeline)
 
-> **Automated 3D Scene Understanding + LLM Safety Analysis for Underground Mining**
+This repository follows a two-part logic for underground mining point clouds:
 
-This project processes raw 3D point cloud data from underground longwall mining environments, constructs a **3D Scene Graph**, and uses a **Local LLM** to identify mining equipment (Shearer, Hydraulic Chocks) and perform safety assessments.
+1. Segmentation stage: produce object/semantic partitions per frame.
+2. Scene graph stage: use those segmented objects to build spatial and temporal scene graphs, then run LLM reasoning.
 
----
+Scene graphs are the main reasoning layer. Segmentation is the upstream stage that provides object regions/labels used by graph construction.
 
-## 🎯 Features
+## Project Layout
 
-- **Geometric Segmentation**: DBSCAN clustering to identify objects from raw point clouds.
-- **Scene Graph Construction**: Builds a graph of objects with spatial relationships.
-- **Local LLM Reasoning**: Flexible LLM integration (supports DeepSeek, Qwen, Llama, Mistral, etc.).
-- **3D Visualization**: Interactive Open3D viewer with colored bounding boxes and relationship arrows.
-- **Automated Pipeline**: Single script (`run_pipeline.py`) runs the entire workflow end-to-end.
-
----
-
-## 📁 Project Structure
-
-```
-Scene-Graph-Mining-Safety/
-├── [Main] run_pipeline.py            # 🚀 Single-frame pipeline
-├── [Main] run_temporal_pipeline.py   # 🚀 Temporal (multi-frame) pipeline
-├── func_segment_clustering.py        # Single-frame segmentation
-├── func_segment_clustering_temporal.py # Multi-frame segmentation
-├── func_build_graph.py               # Single-frame graph construction
-├── func_build_temporal_graph.py      # Temporal graph + object tracking
-├── func_query_local_llm.py           # LLM inference (single-frame)
-├── func_query_llm_temporal.py        # LLM inference (temporal)
-├── func_visualize_scene_graph.py     # Single-frame visualization
-├── func_visualize_temporal.py        # Temporal visualization
-├── LLM/                              # LLM model cache (auto-downloaded)
-│   └── Model_Cache/
-├── Results/                          # Output folder
-│   └── <Dataset_Name>/               # Named by dataset (e.g., "01")
-│       ├── frames/                   # Per-frame results (temporal only)
-│       ├── temporal_scene_graph.json
-│       └── LLM/
-├── Datasets/                         # Your point cloud data
-│   └── 01/                           # Example multi-frame dataset
-└── README.md
+```text
+.
+|- [Main] run_pipeline.py
+|- [Main] run_temporal_pipeline.py
+|- func_segment_clustering.py
+|- func_segment_clustering_temporal.py
+|- func_build_graph.py
+|- func_build_temporal_graph.py
+|- func_query_local_llm.py
+|- func_query_llm_temporal.py
+|- func_visualize_scene_graph.py
+|- func_visualize_temporal.py
+|- MinkUNET/
+|  |- configs/
+|  |- scripts/
+|  |- minkunet/
+|  |- checkpoints/
+|  |- logs/
+|  |- data/
+|- Datasets/
+|- Results/
+|- requirements.txt
 ```
 
----
+## A) Scene Graph Pipeline (Main Logic)
 
-## ⚡ Quick Start
+### Two modes
 
-### 1. Clone the Repository
+- Single-frame graph reasoning:
+  - `python "[Main] run_pipeline.py"`
+- Temporal graph reasoning (multi-frame tracking):
+  - `python "[Main] run_temporal_pipeline.py"`
+
+### Stage flow (single-frame)
+
+1. `func_segment_clustering.py`
+   - voxel downsample, RANSAC plane removal, DBSCAN clustering
+   - writes `scene_objects_clustered.json` and `colored_clusters.pcd`
+2. `func_build_graph.py`
+   - builds nodes/edges (`near` relationships using centroid distance threshold)
+   - writes `scene_graph.json`
+   - creates an LLM prompt: `llm_prompt.txt`
+3. `func_query_local_llm.py`
+   - runs local HF model (default `Qwen/Qwen2.5-7B-Instruct`)
+   - writes structured response: `LLM/llm_response_real.json`
+4. `func_visualize_scene_graph.py`
+   - visualizes objects, boxes, relations, and labels
+
+### Stage flow (temporal)
+
+1. `func_segment_clustering_temporal.py`
+   - processes all `PC_*.pcd` in dataset folder
+   - writes per-frame object JSONs in `frames/`
+2. `func_build_temporal_graph.py`
+   - matches objects across frames with Hungarian assignment
+   - computes displacement, velocity class, direction
+   - writes `temporal_scene_graph.json`
+   - creates temporal LLM prompt: `llm_temporal_prompt.txt`
+3. `func_query_llm_temporal.py`
+   - runs local HF model for temporal explanation/safety
+   - writes:
+     - `LLM/llm_temporal_response.json`
+     - `LLM/llm_raw_output.txt`
+     - `LLM/llm_analysis_report.txt`
+4. `func_visualize_temporal.py`
+   - visualizes trajectories and tracked movement context
+
+### How LLM is used
+
+- Inference backend: HuggingFace Transformers (`AutoTokenizer`, `AutoModelForCausalLM`).
+- Default model in both main scripts: `Qwen/Qwen2.5-7B-Instruct`.
+- Model files are cached locally under:
+  - `LLM/Model_Cache/`
+- Prompts are generated from scene-graph artifacts (not raw point clouds directly).
+- LLM is instructed to return strict JSON (for downstream parsing).
+
+### Key configurable parameters
+
+- Single-frame config (`[Main] run_pipeline.py`):
+  - `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
+  - `GRAPH_DIST_THRESHOLD`
+  - `LLM_MODEL`
+- Temporal config (`[Main] run_temporal_pipeline.py`):
+  - same segmentation parameters
+  - `MAX_TRACK_DISTANCE`, `MOVEMENT_THRESHOLD`
+  - `GRAPH_DIST_THRESHOLD`, `LLM_MODEL`
+
+### Output structure (scene-graph side)
+
+- Single-frame run:
+  - `Results/<pcd_name>/scene_objects_clustered.json`
+  - `Results/<pcd_name>/scene_graph.json`
+  - `Results/<pcd_name>/llm_prompt.txt`
+  - `Results/<pcd_name>/LLM/llm_response_real.json`
+- Temporal run:
+  - `Results/<dataset_name>/frames/frame_XX_objects.json`
+  - `Results/<dataset_name>/frame_index.json`
+  - `Results/<dataset_name>/temporal_scene_graph.json`
+  - `Results/<dataset_name>/llm_temporal_prompt.txt`
+  - `Results/<dataset_name>/LLM/llm_temporal_response.json`
+
+## B) MinkUNET Segmentation Pipeline
+
+Detailed docs are in `MinkUNET/README.md`.  
+This is the practical run order:
+
+### 1) Build manifests (one-time, re-run if dataset split changes)
 
 ```bash
-git clone https://github.com/maninka123/Scene-Graph_Mine-Safety.git
-cd Scene-Graph_Mine-Safety
+python MinkUNET/scripts/build_manifests.py --config MinkUNET/configs/base.yaml
 ```
 
-### 2. Install Dependencies
+### 2) Convert manual annotations from CloudCompare (re-run when labels change)
 
 ```bash
-pip install open3d numpy matplotlib transformers torch accelerate
+python MinkUNET/scripts/import_cloudcompare_labels.py --config MinkUNET/configs/base.yaml
+python MinkUNET/scripts/build_manifests.py --config MinkUNET/configs/base.yaml --labeled-val-ratio 0.2
 ```
 
-### 3. Add Your Point Cloud
-
-Place your `.pcd` file in the `Datasets/` folder and update the path in `[Main] run_pipeline.py`:
-
-```python
-class Config:
-    PCD_FILE = r"Datasets/pcd/your_file.pcd"
-```
-
-### 4. Run the Pipeline
+### 3) Contrastive pretraining
 
 ```bash
-python "[Main] run_pipeline.py"
+python MinkUNET/scripts/train_contrastive.py --config MinkUNET/configs/pretrain.yaml --skip-val --num-workers 0
 ```
 
----
-
-## 🤖 Choosing an LLM Model
-
-The system supports any HuggingFace-compatible LLM. Choose based on your **GPU VRAM**:
-
-| VRAM  | Recommended Model             | HuggingFace ID                              | Size  |
-| ----- | ----------------------------- | ------------------------------------------- | ----- |
-| 8GB   | DeepSeek-R1-Distill-Qwen-1.5B | `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` | ~3GB  |
-| 12GB  | Mistral-7B-Instruct           | `mistralai/Mistral-7B-Instruct-v0.3`        | ~14GB |
-| 16GB+ | Qwen2.5-7B-Instruct           | `Qwen/Qwen2.5-7B-Instruct`                  | ~14GB |
-| 24GB+ | Llama-3.1-8B-Instruct         | `meta-llama/Llama-3.1-8B-Instruct`          | ~16GB |
-
-### How to Change the Model
-
-1. **Open** `[Main] run_pipeline.py`
-2. **Find** the `Config` class (around line 27)
-3. **Change** `LLM_MODEL` to your preferred model:
-
-```python
-class Config:
-    # ...
-    LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct"  # Change this line
-```
-
-### Parameters to Adjust for Different Models
-
-In `func_query_local_llm.py`, you may need to adjust these parameters based on your model choice:
-
-| Parameter        | Reasoning Models (1.5B) | Instruct Models (7B+) | Why?                                                                                                           |
-| ---------------- | ----------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `torch_dtype`    | `torch.float16`         | `torch.bfloat16`      | bfloat16 has better numerical stability for larger models                                                      |
-| `max_new_tokens` | 2048                    | 1024                  | Reasoning models "think out loud" before answering, needing more tokens. Instruct models output JSON directly. |
-| `do_sample`      | `False`                 | `False`               | Deterministic output for consistent JSON                                                                       |
-
-> **💡 Insight**: Smaller "reasoning" models (like DeepSeek-R1) show their chain-of-thought before the final answer, requiring more output tokens. Larger "instruct" models (like Qwen2.5, Llama) follow instructions directly and produce clean JSON without verbose reasoning.
-
----
-
-## ⚙️ Configuration
-
-All parameters are centralized in `[Main] run_pipeline.py`:
-
-| Parameter              | Default          | Description                          |
-| ---------------------- | ---------------- | ------------------------------------ |
-| `VOXEL_SIZE`           | 0.05             | Downsampling resolution (meters)     |
-| `RANSAC_DISTANCE`      | 0.1              | Floor removal threshold              |
-| `CLUSTER_EPS`          | 0.5              | DBSCAN epsilon (cluster distance)    |
-| `CLUSTER_MIN_POINTS`   | 50               | Minimum points per cluster           |
-| `GRAPH_DIST_THRESHOLD` | 2.5              | Max distance for "near" relationship |
-| `LLM_MODEL`            | _(configurable)_ | Local LLM model (see above)          |
-
----
-
-## 📦 Dependencies
-
-- Python 3.8+
-- [Open3D](http://www.open3d.org/) - 3D data processing
-- [NumPy](https://numpy.org/) - Numerical computing
-- [Matplotlib](https://matplotlib.org/) - Color mapping
-- [Transformers](https://huggingface.co/docs/transformers) - LLM loading
-- [PyTorch](https://pytorch.org/) - Deep learning backend
-- [Accelerate](https://huggingface.co/docs/accelerate) - Efficient model loading
-
----
-
-## 🕐 Temporal Pipeline (Multi-Frame Analysis)
-
-The temporal pipeline processes **sequential point cloud frames** to track objects over time and analyze movements.
-
-### Features
-
-- **Multi-Frame Processing**: Processes all PCD files in a dataset folder
-- **Object Tracking**: Matches objects across frames using centroid-based Hungarian algorithm
-- **Movement Analysis**: Classifies objects as `stationary`, `moving_slow`, or `moving_fast`
-- **Temporal LLM Reasoning**: LLM analyzes movement patterns and provides temporal safety insights
-
-### Quick Start
+### 4) Segmentation fine-tuning
 
 ```bash
-python "[Main] run_temporal_pipeline.py"
+python MinkUNET/scripts/train_segmentation.py --config MinkUNET/configs/finetune.yaml
 ```
 
-### Configuration
+### 5) Validation
 
-Edit `[Main] run_temporal_pipeline.py`:
-
-```python
-class TemporalConfig:
-    DATASET_FOLDER = r"Datasets\01"   # Folder with PCD sequence
-    DATASET_NAME = "01"               # Output folder name
-    MAX_TRACK_DISTANCE = 1.0          # Max distance for object matching
-    MOVEMENT_THRESHOLD = 0.2          # Min displacement to count as "moving"
+```bash
+python MinkUNET/scripts/validate_segmentation.py --config MinkUNET/configs/finetune.yaml
 ```
 
-### Output Structure
+### 6) Inference (per-frame output folders)
 
-```
-Results/01/
-├── frames/
-│   ├── frame_00_objects.json
-│   ├── frame_00_clusters.pcd
-│   └── ...
-├── frame_index.json
-├── temporal_scene_graph.json
-├── llm_temporal_prompt.txt
-├── LLM/
-│   └── llm_temporal_response.json
-└── temporal_visualization.pcd
+```bash
+python MinkUNET/scripts/infer_segmentation.py --config MinkUNET/configs/inference.yaml --checkpoint MinkUNET/checkpoints/semantic_best.pt --output-dir Results/MainRun_Inference
 ```
 
-### Temporal Files
+Each frame is saved as:
 
-| File                                  | Description                            |
-| ------------------------------------- | -------------------------------------- |
-| `[Main] run_temporal_pipeline.py`     | Main entry point for temporal analysis |
-| `func_segment_clustering_temporal.py` | Multi-frame segmentation               |
-| `func_build_temporal_graph.py`        | Object tracking & movement analysis    |
-| `func_query_llm_temporal.py`          | Temporal LLM inference                 |
-| `func_visualize_temporal.py`          | Movement trajectory visualization      |
+- `Results/MainRun_Inference/<frame_name>/prediction.npz`
+- `Results/MainRun_Inference/<frame_name>/prediction.pcd`
+- `Results/MainRun_Inference/<frame_name>/summary.json`
 
----
+## Main Segmentation Classes
 
-## 🔮 Future Work
+- `wall`
+- `equipment`
+- `human`
+- `conveyor`
+- `roof`
+- `other`
 
-- [ ] Real-time streaming point cloud processing
-- [ ] Web-based visualization dashboard
-- [x] ~~Multi-frame temporal scene graphs~~ ✅ Implemented!
+## Training Logs and Plots
 
----
+Main training runs auto-save timestamped metrics/plots:
 
-## 📄 License
+- Contrastive:
+  - `MinkUNET/logs/contrastive/<timestamp>/...`
+- Segmentation:
+  - `MinkUNET/logs/segmentation/<timestamp>/...`
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Contrastive diagnostics include:
 
----
+- Similarity histograms (`positive` vs `negative` cosine similarity)
+- Layer sparsity/activation summaries per backbone stage
 
-## 🙏 Acknowledgments
+## Paper-Scale Experiments (Separate Pipeline)
 
-- [Open3D](http://www.open3d.org/) for 3D processing
-- [HuggingFace](https://huggingface.co/) for LLM infrastructure
-- Mining safety research community
+If needed, run full ablations and comparisons in isolated folders:
 
----
+```bash
+python MinkUNET/scripts/run_paper_study.py --config MinkUNET/configs/paper_study.yaml
+```
 
-**Developed for safer underground mining operations.**
+Outputs go under:
+
+- `Results/Paper_Study/<run_name_timestamp>/`
+
+This does not interfere with your normal main-run workflow.

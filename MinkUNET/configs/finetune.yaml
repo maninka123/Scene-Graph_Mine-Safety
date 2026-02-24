@@ -1,0 +1,23 @@
+base_config: "MinkUNET/configs/base.yaml"
+
+train:
+  batch_size: 2
+  epochs: 100
+  lr: 0.0005
+  weight_decay: 0.0001
+  amp: true
+  grad_clip_norm: 5.0
+
+finetune:
+  ignore_index: -1
+  class_weights: [1.2, 1.5, 2.5, 1.5, 1.2, 1.0]
+  checkpoint_name: "semantic_best.pt"
+  pretrained_checkpoint: "MinkUNET/checkpoints/contrastive_best.pt"
+  augmentation:
+    rotation_deg: 15.0
+    scale_min: 0.95
+    scale_max: 1.05
+    jitter_std: 0.002
+    jitter_clip: 0.01
+    point_dropout: 0.02
+    translation: 0.02

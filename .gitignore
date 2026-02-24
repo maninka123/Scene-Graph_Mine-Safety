@@ -1,5 +1,9 @@
 # Datasets/
 Datasets/**
+Dataset/**
+Data_all/**
+Datasets/Annotated/**
+!Datasets/.gitkeep
 
 # LLM Model Weights (Large - DO NOT UPLOAD)
 LLM/
@@ -13,6 +17,7 @@ __pycache__/
 env/
 venv/
 .venv/
+.venv_wsl/
 pip-log.txt
 
 # IDE
@@ -32,4 +37,23 @@ Thumbs.db
 .ipynb_checkpoints/
 
 # Results (Optional - keep sample results, ignore large runs)
-# Results/**/LLM/DeepSeek_Model/
+Results/**
+!Results/.gitkeep
+
+# MinkUNET training artifacts
+MinkUNET/checkpoints/*
+!MinkUNET/checkpoints/.gitkeep
+MinkUNET/logs/*
+!MinkUNET/logs/.gitkeep
+MinkUNET/data/manifests/*
+!MinkUNET/data/manifests/.gitkeep
+
+# Large artifacts
+*.pcd
+*.npz
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.bin
+*.safetensors
