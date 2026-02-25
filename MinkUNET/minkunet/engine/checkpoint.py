@@ -23,11 +23,14 @@ def load_checkpoint(
     if not p.exists():
         raise FileNotFoundError(f"Checkpoint not found: {p}")
 
-    state = torch.load(p, map_location=map_location)
+    try:
+        state = torch.load(p, map_location=map_location, weights_only=False)
+    except TypeError:
+        # Backward compatibility for older PyTorch versions without weights_only.
+        state = torch.load(p, map_location=map_location)
     model.load_state_dict(state["model_state"])
     if optimizer is not None and "optimizer_state" in state:
         optimizer.load_state_dict(state["optimizer_state"])
     if scheduler is not None and "scheduler_state" in state:
         scheduler.load_state_dict(state["scheduler_state"])
     return state
-

@@ -6,8 +6,14 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import numpy as np
-import pandas as pd
 import streamlit as st
+
+PANDAS_IMPORT_ERROR = None
+try:
+    import pandas as pd
+except Exception as exc:  # pragma: no cover - environment dependent
+    pd = None
+    PANDAS_IMPORT_ERROR = exc
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -102,8 +108,12 @@ def _save_plot_html(fig, out_path: Path) -> None:
 def _read_json(path: Path) -> Dict:
     if not path.exists():
         return {}
-    with path.open("r", encoding="utf-8") as handle:
-        return json.load(handle)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _preview_from_npz(npz_path: Path, class_meta: Dict, title: str, max_points: int = 20000):
@@ -265,7 +275,14 @@ def _render_issue_sections(buckets: Dict[str, List[Dict]]):
 
 
 def _render_llm_single_structured(llm_json: Dict):
+    if not isinstance(llm_json, dict):
+        st.warning("LLM JSON format is not an object. Showing raw content.")
+        st.json(llm_json)
+        return
     st.markdown("### \U0001F916 LLM Reasoning Report")
+    parse_warning = _txt(llm_json.get("_parse_warning", ""))
+    if parse_warning:
+        st.warning(f"\u26A0\uFE0F {parse_warning}")
     safety = _txt(llm_json.get("safety_assessment", ""))
     if safety:
         if any(k in safety.lower() for k in ["unsafe", "risk", "hazard", "danger", "critical"]):
@@ -283,7 +300,14 @@ def _render_llm_single_structured(llm_json: Dict):
 
 
 def _render_llm_temporal_structured(llm_json: Dict):
+    if not isinstance(llm_json, dict):
+        st.warning("LLM JSON format is not an object. Showing raw content.")
+        st.json(llm_json)
+        return
     st.markdown("### \U0001F916 LLM Temporal Reasoning Report")
+    parse_warning = _txt(llm_json.get("_parse_warning", ""))
+    if parse_warning:
+        st.warning(f"\u26A0\uFE0F {parse_warning}")
     safety = _txt(llm_json.get("temporal_safety_assessment", ""))
     movement = _txt(llm_json.get("movement_analysis", ""))
 
@@ -314,14 +338,17 @@ def _render_single_results(run_summary: Dict, class_meta: Dict):
     metrics = run_summary.get("metrics", {})
     frame_dir = Path(run_summary["frame_dir"])
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Points", f"{metrics.get('point_count', 0):,}")
     c2.metric("Objects", str(metrics.get("object_count", 0)))
     c3.metric("Graph Nodes", str(metrics.get("graph_nodes", 0)))
     c4.metric("Graph Edges", str(metrics.get("graph_edges", 0)))
+    c5.metric("Seg Time (s)", f"{metrics.get('segmentation_inference_seconds', 0.0):.3f}")
+    c6.metric("LLM Time (s)", f"{metrics.get('llm_inference_seconds', 0.0):.3f}")
     st.caption(f"LLM status: {metrics.get('llm_status', 'unknown')}")
 
     st.markdown("### Segmentation Preview")
+    st.caption(f"Segmentation inference time: {metrics.get('segmentation_inference_seconds', 0.0):.3f} s")
     npz_path = Path(outputs["semantic_npz"])
     if npz_path.exists():
         fig = _preview_from_npz(npz_path, class_meta=class_meta, title="Semantic Segmentation (Single Frame)")
@@ -341,6 +368,7 @@ def _render_single_results(run_summary: Dict, class_meta: Dict):
     llm_status = metrics.get("llm_status", "unknown")
     if llm_path and Path(llm_path).exists():
         st.markdown("### LLM Output")
+        st.caption(f"LLM inference time: {metrics.get('llm_inference_seconds', 0.0):.3f} s")
         llm_json = _read_json(Path(llm_path))
         _render_llm_single_structured(llm_json)
     elif llm_status == "skipped":
@@ -361,11 +389,13 @@ def _render_temporal_results(run_summary: Dict, class_meta: Dict):
     metrics = run_summary.get("metrics", {})
     run_dir = Path(run_summary["run_dir"])
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     c1.metric("Frames", str(run_summary.get("num_frames", 0)))
     c2.metric("Total Objects", str(metrics.get("total_objects", 0)))
     c3.metric("Avg Inference (s)", f"{metrics.get('avg_inference_seconds', 0.0):.3f}")
     c4.metric("Estimated FPS", f"{metrics.get('fps_estimate', 0.0):.2f}")
+    c5.metric("Seg Total (s)", f"{metrics.get('segmentation_total_seconds', 0.0):.3f}")
+    c6.metric("LLM Time (s)", f"{metrics.get('llm_inference_seconds', 0.0):.3f}")
     st.caption(f"LLM status: {metrics.get('llm_status', 'unknown')}")
 
     frame_metrics_csv = Path(outputs["frame_metrics_csv"])
@@ -404,6 +434,7 @@ def _render_temporal_results(run_summary: Dict, class_meta: Dict):
     llm_status = metrics.get("llm_status", "unknown")
     if llm_path and Path(llm_path).exists():
         st.markdown("### LLM Output")
+        st.caption(f"LLM inference time: {metrics.get('llm_inference_seconds', 0.0):.3f} s")
         _render_llm_temporal_structured(_read_json(Path(llm_path)))
     elif llm_status == "skipped":
         st.info("LLM step was skipped for this run.")
@@ -505,9 +536,9 @@ def _render_model_runtime_panel(controls: Dict):
             for m in local_models:
                 rows.append(
                     {
-                        "model_id": m["model_id"],
-                        "weights_gb": m["weights_gb"],
-                        "est_required_vram_gb": m["required_vram_gb"],
+                        "Model": m["model_id"],
+                        "Weights Size (GB)": m["weights_gb"],
+                        "Estimated VRAM Required (GB)": m["required_vram_gb"],
                     }
                 )
             st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -515,9 +546,9 @@ def _render_model_runtime_panel(controls: Dict):
             st.info("No cached models found yet in workspace `LLM/` folders.", icon="ℹ️")
 
     with right:
-        device = controls.get("device_report", {})
+        device = controls.get("device_report") or {}
         st.info(f"🖥️ Current device: {device.get('device_text', 'Unknown')}")
-        comp = controls.get("compatibility", {})
+        comp = controls.get("compatibility") or {}
         title = comp.get("title", "Compatibility")
         message = comp.get("message", "")
         icon = comp.get("icon", "ℹ️")
@@ -540,6 +571,17 @@ def main():
     st.title("Mine Scene Intelligence App")
     st.caption("MinkUNET segmentation + scene graph + local LLM reasoning (isolated app pipeline)")
     st.info("All app outputs are saved only under `AppUI/app_results/`.")
+
+    if PANDAS_IMPORT_ERROR is not None or pd is None:
+        st.error(
+            "Pandas failed to import due to a NumPy/Pandas binary mismatch in this environment.\n\n"
+            "Fix in your active venv:\n"
+            "1) `pip install --upgrade pip`\n"
+            "2) `pip uninstall -y numpy pandas`\n"
+            "3) `pip install numpy pandas`\n\n"
+            f"Original error: {PANDAS_IMPORT_ERROR}"
+        )
+        st.stop()
 
     controls = _common_sidebar()
     mode = controls["mode"]

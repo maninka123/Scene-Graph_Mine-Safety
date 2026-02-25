@@ -61,6 +61,12 @@ def _notify(
 def _safe_load_json(path: Path) -> Dict:
     if not path.exists():
         return {}
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _llm_artifacts(output_dir: Path, json_filename: str, raw_filename: str) -> Dict[str, Optional[str]]:
@@ -71,11 +77,6 @@ def _llm_artifacts(output_dir: Path, json_filename: str, raw_filename: str) -> D
         "llm_response": str(json_path.resolve()) if json_path.exists() else None,
         "llm_raw": str(raw_path.resolve()) if raw_path.exists() else None,
     }
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            return json.load(handle)
-    except Exception:
-        return {}
 
 
 def run_single_pipeline(
@@ -99,6 +100,7 @@ def run_single_pipeline(
     frame_dir.mkdir(parents=True, exist_ok=True)
 
     _notify(progress_callback, "segmentation", "Running MinkUNET segmentation", 0.1)
+    seg_t0 = time.perf_counter()
     segmented_objects_file = segment_geometry_minkunet(
         pcd_path=str(source),
         output_dir=str(frame_dir),
@@ -109,6 +111,7 @@ def run_single_pipeline(
         class_dbscan_eps=class_dbscan_eps,
         class_min_points=class_min_points,
     )
+    seg_seconds = float(time.perf_counter() - seg_t0)
     if not segmented_objects_file:
         raise AppRunError("Segmentation failed.")
 
@@ -122,13 +125,16 @@ def run_single_pipeline(
         raise AppRunError("Scene graph construction failed.")
 
     llm_response = None
+    llm_seconds = 0.0
     if run_llm:
         _notify(progress_callback, "llm", "Running LLM reasoning", 0.75)
+        llm_t0 = time.perf_counter()
         llm_response = query_local_llm(
             prompt_file=prompt_file,
             output_dir=str(frame_dir),
             model_name=llm_model,
         )
+        llm_seconds = float(time.perf_counter() - llm_t0)
 
     _notify(progress_callback, "finalize", "Collecting outputs", 0.95)
     summary = _safe_load_json(frame_dir / "semantic_summary.json")
@@ -160,6 +166,8 @@ def run_single_pipeline(
             "graph_nodes": len(scene_graph.get("nodes", [])),
             "graph_edges": len(scene_graph.get("edges", [])),
             "llm_status": llm_status,
+            "segmentation_inference_seconds": seg_seconds,
+            "llm_inference_seconds": llm_seconds if run_llm else 0.0,
         },
     }
 
@@ -204,6 +212,7 @@ def run_temporal_pipeline(
     frame_json_files: List[str] = []
     frame_metrics: List[Dict] = []
     total_class_counts = {name: 0 for name in class_names}
+    segmentation_total_seconds = 0.0
 
     for frame_idx, pcd_path in enumerate(selected_files):
         t0 = time.perf_counter()
@@ -245,6 +254,7 @@ def run_temporal_pipeline(
             total_class_counts[cls_name] += cls_count
 
         infer_sec = time.perf_counter() - t0
+        segmentation_total_seconds += float(infer_sec)
         entry = {
             "frame_index": frame_idx,
             "frame_name": pcd_path.stem,
@@ -289,13 +299,16 @@ def run_temporal_pipeline(
         raise AppRunError("Temporal graph construction failed.")
 
     llm_response = None
+    llm_seconds = 0.0
     if run_llm:
         _notify(progress_callback, "llm", "Running temporal LLM reasoning", 0.90)
+        llm_t0 = time.perf_counter()
         llm_response = query_llm_temporal(
             prompt_file=temporal_prompt_file,
             output_dir=str(run_dir),
             model_name=llm_model,
         )
+        llm_seconds = float(time.perf_counter() - llm_t0)
 
     temporal_graph = _safe_load_json(run_dir / "temporal_scene_graph.json")
     llm_files = _llm_artifacts(run_dir, "llm_temporal_response.json", "llm_raw_output.txt")
@@ -323,6 +336,8 @@ def run_temporal_pipeline(
             "class_counts": total_class_counts,
             "track_summary": temporal_graph.get("summary", {}),
             "llm_status": llm_status,
+            "segmentation_total_seconds": float(segmentation_total_seconds),
+            "llm_inference_seconds": llm_seconds if run_llm else 0.0,
         },
     }
     with (run_dir / "run_summary.json").open("w", encoding="utf-8") as handle:
