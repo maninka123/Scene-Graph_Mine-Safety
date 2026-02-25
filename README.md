@@ -202,6 +202,12 @@ If needed, run full ablations and comparisons in isolated folders:
 python MinkUNET/scripts/run_paper_study.py --config MinkUNET/configs/paper_study.yaml
 ```
 
+Visualize all paper-study results (auto-picks latest run in `Results/Paper_Study`):
+
+```bash
+python MinkUNET/scripts/visualize_paper_results.py --study-root Results/Paper_Study
+```
+
 Outputs go under:
 
 - `Results/Paper_Study/<run_name_timestamp>/`

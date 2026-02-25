@@ -25,22 +25,37 @@ def load_yaml(path: Path) -> Dict[str, Any]:
     return data
 
 
-def load_config(config_path: str | Path) -> Dict[str, Any]:
-    cfg_path = Path(config_path)
+def _resolve_config(config_path: Path, stack: set[Path]) -> Dict[str, Any]:
+    cfg_path = config_path.resolve()
+    if cfg_path in stack:
+        chain = " -> ".join(str(p) for p in list(stack) + [cfg_path])
+        raise ValueError(f"Cyclic base_config reference detected: {chain}")
     if not cfg_path.exists():
         raise FileNotFoundError(f"Config file not found: {cfg_path}")
 
+    stack.add(cfg_path)
     cfg = load_yaml(cfg_path)
     base_cfg_path = cfg.get("base_config")
-    if base_cfg_path:
-        candidates = [Path(base_cfg_path), cfg_path.parent / Path(base_cfg_path)]
-        resolved_base = None
-        for candidate in candidates:
-            if candidate.exists():
-                resolved_base = candidate
-                break
-        if resolved_base is None:
-            raise FileNotFoundError(f"Base config not found: {base_cfg_path}")
-        base_cfg = load_yaml(resolved_base)
-        cfg = _deep_update(base_cfg, {k: v for k, v in cfg.items() if k != "base_config"})
-    return cfg
+    if not base_cfg_path:
+        stack.remove(cfg_path)
+        return cfg
+
+    base_ref = Path(base_cfg_path)
+    candidates = [base_ref, cfg_path.parent / base_ref]
+    resolved_base = None
+    for candidate in candidates:
+        if candidate.exists():
+            resolved_base = candidate
+            break
+    if resolved_base is None:
+        stack.remove(cfg_path)
+        raise FileNotFoundError(f"Base config not found: {base_cfg_path}")
+
+    base_cfg = _resolve_config(resolved_base, stack=stack)
+    merged = _deep_update(base_cfg, {k: v for k, v in cfg.items() if k != "base_config"})
+    stack.remove(cfg_path)
+    return merged
+
+
+def load_config(config_path: str | Path) -> Dict[str, Any]:
+    return _resolve_config(Path(config_path), stack=set())

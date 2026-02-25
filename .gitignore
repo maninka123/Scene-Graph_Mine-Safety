@@ -36,9 +36,9 @@ Thumbs.db
 # Jupyter
 .ipynb_checkpoints/
 
-# Results (Optional - keep sample results, ignore large runs)
-Results/**
-!Results/.gitkeep
+# Results
+# Keep lightweight results (plots/tables/json), ignore heavy artifacts by extension rules below.
+!Results/**
 
 # MinkUNET training artifacts
 MinkUNET/checkpoints/*

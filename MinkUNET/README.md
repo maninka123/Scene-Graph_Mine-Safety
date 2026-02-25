@@ -171,6 +171,12 @@ Generate/refresh comparison plots from a study folder:
 python MinkUNET/scripts/visualize_paper_results.py --study-dir Results/Paper_Study/<your_run_folder>
 ```
 
+Or visualize all paper-study results by using the latest run automatically:
+
+```bash
+python MinkUNET/scripts/visualize_paper_results.py --study-root Results/Paper_Study
+```
+
 ## Training Outputs For Papers
 
 Each training run now creates a timestamped folder under:
