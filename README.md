@@ -22,8 +22,10 @@ Scene-Graph-Mine-Safety/
 ├── [Main] run_pipeline.py                 # 🚀 Single-frame pipeline (segment -> graph -> LLM -> visualize)
 ├── [Main] run_temporal_pipeline.py        # 🚀 Temporal pipeline (tracking + temporal graph + LLM)
 │
-├── func_segment_clustering.py             # Single-frame geometric segmentation (DBSCAN)
-├── func_segment_clustering_temporal.py    # Multi-frame segmentation across dataset sequence
+├── func_segment_minkunet.py               # Single-frame semantic segmentation (MinkUNET + instance grouping)
+├── func_segment_minkunet_temporal.py      # Multi-frame semantic segmentation across sequence
+├── func_segment_clustering.py             # Optional geometric fallback segmentation (DBSCAN)
+├── func_segment_clustering_temporal.py    # Optional temporal fallback segmentation
 ├── func_build_graph.py                    # Build single-frame scene graph (nodes + near-edges)
 ├── func_build_temporal_graph.py           # Track objects over time + temporal graph construction
 ├── func_query_local_llm.py                # Local LLM inference for single-frame graph prompt
@@ -38,6 +40,12 @@ Scene-Graph-Mine-Safety/
 │   ├── checkpoints/                       # Saved model checkpoints
 │   ├── logs/                              # Metrics, plots, diagnostics
 │   └── data/                              # Manifests and metadata
+│
+├── AppUI/                                 # Separate web app (Streamlit dashboard, isolated outputs)
+│   ├── app.py
+│   ├── app_core/
+│   ├── app_results/                       # App-only run outputs
+│   └── requirements.txt
 │
 ├── LLM/
 │   └── Model_Cache/                       # 🤗 Downloaded local model cache
@@ -55,11 +63,15 @@ Scene-Graph-Mine-Safety/
 - Temporal graph reasoning (multi-frame tracking):
   - `python "[Main] run_temporal_pipeline.py"`
 
+Both runners now default to MinkUNET segmentation and keep clustering as a fallback backend.
+
 ### Stage flow (single-frame)
 
-1. `func_segment_clustering.py`
-   - voxel downsample, RANSAC plane removal, DBSCAN clustering
-   - writes `scene_objects_clustered.json` and `colored_clusters.pcd`
+1. `func_segment_minkunet.py`
+   - runs semantic inference (`wall/equipment/human/conveyor/roof/other`)
+   - groups semantic points into instance objects (class-aware DBSCAN)
+   - writes `scene_objects_segmented.json`, `semantic_segmentation.pcd`, `semantic_prediction.npz`
+   - fallback option: `func_segment_clustering.py` when backend is set to `clustering`
 2. `func_build_graph.py`
    - builds nodes/edges (`near` relationships using centroid distance threshold)
    - writes `scene_graph.json`
@@ -72,9 +84,10 @@ Scene-Graph-Mine-Safety/
 
 ### Stage flow (temporal)
 
-1. `func_segment_clustering_temporal.py`
+1. `func_segment_minkunet_temporal.py`
    - processes all `PC_*.pcd` in dataset folder
-   - writes per-frame object JSONs in `frames/`
+   - writes per-frame object JSONs and semantic outputs in `frames/`
+   - fallback option: `func_segment_clustering_temporal.py` when backend is set to `clustering`
 2. `func_build_temporal_graph.py`
    - matches objects across frames with Hungarian assignment
    - computes displacement, velocity class, direction
@@ -101,18 +114,24 @@ Scene-Graph-Mine-Safety/
 ### Key configurable parameters
 
 - Single-frame config (`[Main] run_pipeline.py`):
-  - `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
+  - `SEGMENTATION_BACKEND` (`minkunet` by default)
+  - `MINKUNET_CONFIG`, `MINKUNET_CHECKPOINT`, `MINKUNET_TEMPORAL_WINDOW`
+  - optional fallback params: `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
   - `GRAPH_DIST_THRESHOLD`
   - `LLM_MODEL`
 - Temporal config (`[Main] run_temporal_pipeline.py`):
-  - same segmentation parameters
+  - `SEGMENTATION_BACKEND` (`minkunet` by default)
+  - `MINKUNET_CONFIG`, `MINKUNET_CHECKPOINT`, `MINKUNET_TEMPORAL_WINDOW`
+  - optional fallback params: `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
   - `MAX_TRACK_DISTANCE`, `MOVEMENT_THRESHOLD`
   - `GRAPH_DIST_THRESHOLD`, `LLM_MODEL`
 
 ### Output structure (scene-graph side)
 
 - Single-frame run:
-  - `Results/<pcd_name>/scene_objects_clustered.json`
+  - `Results/<pcd_name>/scene_objects_segmented.json`
+  - `Results/<pcd_name>/semantic_segmentation.pcd`
+  - `Results/<pcd_name>/semantic_prediction.npz`
   - `Results/<pcd_name>/scene_graph.json`
   - `Results/<pcd_name>/llm_prompt.txt`
   - `Results/<pcd_name>/LLM/llm_response_real.json`
@@ -213,3 +232,22 @@ Outputs go under:
 - `Results/Paper_Study/<run_name_timestamp>/`
 
 This does not interfere with your normal main-run workflow.
+
+## C) Interactive App (Separate, Non-Interfering)
+
+For an interactive UI with:
+- single-frame or temporal selection
+- timestamp-range and frame-gap control
+- live segmentation preview during run
+- graph + LLM stages
+- saved plots/metrics dashboards
+
+use the standalone app:
+
+```bash
+pip install -r AppUI/requirements.txt
+streamlit run AppUI/app.py
+```
+
+App outputs are saved only in:
+- `AppUI/app_results/`

@@ -39,6 +39,8 @@ Thumbs.db
 # Results
 # Keep lightweight results (plots/tables/json), ignore heavy artifacts by extension rules below.
 !Results/**
+AppUI/app_results/*
+!AppUI/app_results/.gitkeep
 
 # MinkUNET training artifacts
 MinkUNET/checkpoints/*
