@@ -27,6 +27,11 @@ from AppUI.app_core.pipeline_runner import (
     run_single_pipeline,
     run_temporal_pipeline,
 )
+from AppUI.app_core.temporal_graphrag import (
+    answer_temporal_question,
+    discover_temporal_graphs,
+    summarize_temporal_coverage,
+)
 from AppUI.app_core.model_catalog import (
     compatibility_message,
     discover_local_models,
@@ -69,6 +74,28 @@ def _inject_theme() -> None:
         .caption-soft {
             color: #9cb3c9;
             font-size: 0.9rem;
+        }
+        .rag-hero {
+            border: 1px solid rgba(98, 176, 229, 0.45);
+            border-radius: 14px;
+            padding: 0.75rem 0.95rem;
+            background: linear-gradient(135deg, rgba(10, 47, 77, 0.52), rgba(17, 33, 46, 0.36));
+        }
+        .rag-chip {
+            display: inline-block;
+            margin-right: 0.4rem;
+            margin-bottom: 0.35rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(126, 163, 190, 0.42);
+            background: rgba(21, 36, 51, 0.52);
+        }
+        .rag-answer-box {
+            border-left: 3px solid rgba(84, 178, 126, 0.9);
+            padding: 0.45rem 0.65rem;
+            background: rgba(18, 28, 34, 0.38);
+            border-radius: 8px;
         }
         </style>
         """,
@@ -449,6 +476,141 @@ def _render_temporal_results(run_summary: Dict, class_meta: Dict):
     st.code(run_summary["run_dir"], language="text")
 
 
+def _confidence_chip(level: str) -> str:
+    low = _txt(level).lower()
+    if low == "high":
+        return "High confidence"
+    if low == "low":
+        return "Low confidence"
+    return "Medium confidence"
+
+
+def _render_temporal_graphrag_section(controls: Dict):
+    st.markdown("### Ask Questions About Temporal History")
+    st.markdown(
+        "<div class='rag-hero'>"
+        "<b>Temporal GraphRAG Q&A</b><br/>"
+        "Query one or many saved temporal graphs, retrieve only relevant subgraph evidence, and answer with the selected local LLM."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    search_roots = [
+        PROJECT_ROOT / "AppUI" / "app_results" / "Temporal_Sequence",
+        PROJECT_ROOT / "Results" / "Temporal_Sequence",
+    ]
+    docs = discover_temporal_graphs(search_roots)
+    if not docs:
+        st.info(
+            "No `temporal_scene_graph.json` files found yet under "
+            "`AppUI/app_results/Temporal_Sequence/` or `Results/Temporal_Sequence/`."
+        )
+        return
+
+    full_coverage = summarize_temporal_coverage(docs)
+    st.markdown(
+        f"<span class='rag-chip'>Temporal runs: {full_coverage.get('count', 0)}</span>"
+        f"<span class='rag-chip'>From: {full_coverage.get('start_label', 'Unknown')}</span>"
+        f"<span class='rag-chip'>To: {full_coverage.get('end_label', 'Unknown')}</span>",
+        unsafe_allow_html=True,
+    )
+
+    options = [str(d.get("graph_id")) for d in docs]
+    labels = {
+        str(d.get("graph_id")): (
+            f"{d.get('run_name')} | {d.get('start_label')} -> {d.get('end_label')} | "
+            f"tracks={d.get('total_tracks', 0)} moving={d.get('moving_objects', 0)} | {d.get('source_kind')}"
+        )
+        for d in docs
+    }
+    selected_key = "temporal_rag_selected_graphs"
+    if selected_key not in st.session_state:
+        st.session_state[selected_key] = options[: min(8, len(options))]
+    else:
+        st.session_state[selected_key] = [x for x in st.session_state[selected_key] if x in options]
+        if not st.session_state[selected_key] and options:
+            st.session_state[selected_key] = options[: min(8, len(options))]
+
+    st.multiselect(
+        "Temporal runs to query",
+        options=options,
+        key=selected_key,
+        format_func=lambda item: labels.get(item, item),
+    )
+    selected_ids = list(st.session_state.get(selected_key, []))
+    selected_docs = [d for d in docs if str(d.get("graph_id")) in selected_ids]
+    selected_coverage = summarize_temporal_coverage(selected_docs)
+    st.caption(
+        f"Selected temporal data from {selected_coverage.get('start_label', 'Unknown')} "
+        f"to {selected_coverage.get('end_label', 'Unknown')} "
+        f"({selected_coverage.get('count', 0)} run(s))."
+    )
+
+    chat_key = "temporal_rag_chat_history"
+    if chat_key not in st.session_state:
+        st.session_state[chat_key] = []
+
+    left, _ = st.columns([1.2, 4.0])
+    with left:
+        if st.button("Clear Q&A History", use_container_width=True):
+            st.session_state[chat_key] = []
+            st.rerun()
+
+    history = list(st.session_state.get(chat_key, []))
+    for turn in history:
+        with st.chat_message("user"):
+            st.markdown(_txt(turn.get("question", "")))
+        with st.chat_message("assistant"):
+            st.markdown(f"<div class='rag-answer-box'>{_txt(turn.get('answer', ''))}</div>", unsafe_allow_html=True)
+            st.caption(_confidence_chip(_txt(turn.get("confidence", "medium"))))
+            highlights = turn.get("highlights", [])
+            if isinstance(highlights, list) and highlights:
+                st.markdown("Key points:")
+                for item in highlights:
+                    st.markdown(f"- {_txt(item)}")
+            evidence = turn.get("evidence", [])
+            if isinstance(evidence, list) and evidence:
+                with st.expander("Evidence used"):
+                    for item in evidence:
+                        st.markdown(f"- {_txt(item)}")
+
+    with st.form("temporal_rag_form", clear_on_submit=True):
+        prompt = st.text_area(
+            "Question",
+            height=95,
+            placeholder="Ask about anomalies, movement trends, clearance risk, or changes over time...",
+        )
+        submitted = st.form_submit_button("Ask Question", use_container_width=True, type="primary")
+
+    if submitted:
+        prompt = _txt(prompt)
+        if not prompt:
+            st.warning("Enter a question first.")
+            return
+        if not selected_ids:
+            st.warning("Select at least one temporal run to query.")
+            return
+
+        with st.spinner("Retrieving relevant temporal subgraph and generating answer..."):
+            result = answer_temporal_question(
+                question=prompt,
+                docs=docs,
+                selected_graph_ids=selected_ids,
+                model_name=controls["llm_model"],
+                chat_history=history,
+            )
+
+        entry = {
+            "question": prompt,
+            "answer": _txt(result.get("answer", "")),
+            "highlights": result.get("highlights", []),
+            "evidence": result.get("evidence", []),
+            "confidence": _txt(result.get("confidence", "medium")),
+        }
+        st.session_state[chat_key] = history + [entry]
+        st.rerun()
+
+
 def _common_sidebar():
     st.sidebar.markdown("## Pipeline Controls")
     mode = st.sidebar.radio("Mode", ["Single Frame", "Temporal Sequence"], index=0)
@@ -564,42 +726,13 @@ def _render_model_runtime_panel(controls: Dict):
             st.info(text)
 
 
-def main():
-    st.set_page_config(page_title="Mine Scene Intelligence App", layout="wide")
-    _inject_theme()
-
-    st.title("Mine Scene Intelligence App")
-    st.caption("MinkUNET segmentation + scene graph + local LLM reasoning (isolated app pipeline)")
-    st.info("All app outputs are saved only under `AppUI/app_results/`.")
-
-    if PANDAS_IMPORT_ERROR is not None or pd is None:
-        st.error(
-            "Pandas failed to import due to a NumPy/Pandas binary mismatch in this environment.\n\n"
-            "Fix in your active venv:\n"
-            "1) `pip install --upgrade pip`\n"
-            "2) `pip uninstall -y numpy pandas`\n"
-            "3) `pip install numpy pandas`\n\n"
-            f"Original error: {PANDAS_IMPORT_ERROR}"
-        )
-        st.stop()
-
-    controls = _common_sidebar()
-    mode = controls["mode"]
-    _render_model_runtime_panel(controls)
-
-    try:
-        class_meta = _load_class_meta(controls["mink_cfg"])
-    except Exception as exc:
-        st.error(f"Could not load config `{controls['mink_cfg']}`: {exc}")
-        return
-
-    try:
-        class_dbscan_eps = _parse_json_map(controls["eps_json"], value_type="float")
-        class_min_points = _parse_json_map(controls["minpts_json"], value_type="int")
-    except Exception as exc:
-        st.error(f"Invalid advanced JSON setting: {exc}")
-        return
-
+def _render_pipeline_workspace(
+    mode: str,
+    controls: Dict,
+    class_meta: Dict,
+    class_dbscan_eps: Optional[Dict],
+    class_min_points: Optional[Dict],
+):
     if mode == "Single Frame":
         st.markdown("## Single-frame Run")
         folder = st.text_input("PCD Folder", "Datasets/Data_all")
@@ -726,6 +859,55 @@ def main():
             st.markdown("---")
             st.markdown("## Latest Temporal Results")
             _render_temporal_results(st.session_state["last_run"], class_meta=class_meta)
+
+
+def main():
+    st.set_page_config(page_title="Mine Scene Intelligence App", layout="wide")
+    _inject_theme()
+
+    st.title("Mine Scene Intelligence App")
+    st.caption("MinkUNET segmentation + scene graph + local LLM reasoning (isolated app pipeline)")
+    st.info("All app outputs are saved under `AppUI/app_results/Single_Frame/` or `AppUI/app_results/Temporal_Sequence/`.")
+
+    if PANDAS_IMPORT_ERROR is not None or pd is None:
+        st.error(
+            "Pandas failed to import due to a NumPy/Pandas binary mismatch in this environment.\n\n"
+            "Fix in your active venv:\n"
+            "1) `pip install --upgrade pip`\n"
+            "2) `pip uninstall -y numpy pandas`\n"
+            "3) `pip install numpy pandas`\n\n"
+            f"Original error: {PANDAS_IMPORT_ERROR}"
+        )
+        st.stop()
+
+    controls = _common_sidebar()
+    mode = controls["mode"]
+    _render_model_runtime_panel(controls)
+
+    try:
+        class_meta = _load_class_meta(controls["mink_cfg"])
+    except Exception as exc:
+        st.error(f"Could not load config `{controls['mink_cfg']}`: {exc}")
+        return
+
+    try:
+        class_dbscan_eps = _parse_json_map(controls["eps_json"], value_type="float")
+        class_min_points = _parse_json_map(controls["minpts_json"], value_type="int")
+    except Exception as exc:
+        st.error(f"Invalid advanced JSON setting: {exc}")
+        return
+
+    main_col, panel_col = st.columns([1.75, 1.25], gap="large")
+    with main_col:
+        _render_pipeline_workspace(
+            mode=mode,
+            controls=controls,
+            class_meta=class_meta,
+            class_dbscan_eps=class_dbscan_eps,
+            class_min_points=class_min_points,
+        )
+    with panel_col:
+        _render_temporal_graphrag_section(controls)
 
 
 if __name__ == "__main__":

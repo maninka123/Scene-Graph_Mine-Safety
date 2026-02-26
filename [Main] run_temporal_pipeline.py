@@ -76,7 +76,7 @@ def main():
     print("      Multi-Frame Movement Analysis")
     print(f"{'#' * 60}\n")
 
-    results_dir = os.path.join("Results", TemporalConfig.DATASET_NAME)
+    results_dir = os.path.join("Results", "Temporal_Sequence", TemporalConfig.DATASET_NAME)
     os.makedirs(results_dir, exist_ok=True)
     print(f"[INFO] Dataset: {TemporalConfig.DATASET_FOLDER}")
     print(f"[INFO] Segmentation backend: {TemporalConfig.SEGMENTATION_BACKEND}")

@@ -76,7 +76,7 @@ def main():
     print(f"{'#' * 60}\n")
 
     pcd_name = os.path.splitext(os.path.basename(Config.PCD_FILE))[0]
-    results_dir = os.path.join("Results", pcd_name)
+    results_dir = os.path.join("Results", "Single_Frame", pcd_name)
     os.makedirs(results_dir, exist_ok=True)
     print(f"[INFO] Segmentation backend: {Config.SEGMENTATION_BACKEND}")
     print(f"[INFO] Results will be saved to: {results_dir}\n")

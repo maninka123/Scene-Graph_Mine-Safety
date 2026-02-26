@@ -33,11 +33,16 @@ def ensure_results_root(root: Path = APP_RESULTS_ROOT) -> Path:
 
 def create_run_dir(mode: str, run_name: str = "") -> Path:
     root = ensure_results_root()
-    mode_dir = root / mode
+    mode_key = mode.strip().lower()
+    mode_dir_name = {
+        "single": "Single_Frame",
+        "temporal": "Temporal_Sequence",
+    }.get(mode_key, mode)
+    mode_dir = root / mode_dir_name
     mode_dir.mkdir(parents=True, exist_ok=True)
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    prefix = run_name.strip().replace(" ", "_") if run_name.strip() else mode
+    prefix = run_name.strip().replace(" ", "_") if run_name.strip() else mode_key
     run_dir = mode_dir / f"{prefix}_{stamp}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
