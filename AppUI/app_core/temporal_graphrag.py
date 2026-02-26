@@ -81,6 +81,36 @@ def _tokenize(text: str) -> List[str]:
     return re.findall(r"[a-z0-9_]+", str(text).lower())
 
 
+def _contains_any(text: str, terms: Sequence[str]) -> bool:
+    low = str(text).lower()
+    return any(term in low for term in terms)
+
+
+def _question_requests_visual(question: str) -> bool:
+    return _contains_any(
+        question,
+        [
+            "plot",
+            "graph",
+            "vector",
+            "visual",
+            "visualize",
+            "chart",
+            "show",
+            "trajectory",
+            "arrow",
+            "link",
+        ],
+    )
+
+
+def _is_explicit_date_range_question(text: str) -> bool:
+    low = str(text).lower()
+    if _contains_any(low, ["date range", "time range", "period", "time window", "dates covered", "range covered"]):
+        return True
+    return re.search(r"\bfrom\b.+\bto\b", low) is not None
+
+
 def _label_histogram(tracked_objects: Sequence[Dict[str, Any]]) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for item in tracked_objects:
@@ -285,6 +315,12 @@ def retrieve_temporal_subgraph(
     context_lines.append("Retrieved temporal evidence for question answering:")
 
     selected_doc_payloads: List[Dict[str, Any]] = []
+    visual_tracks: List[Dict[str, Any]] = []
+    total_tracks_sum = 0
+    total_moving_sum = 0
+    total_human_tracks_sum = 0
+    latest_doc_end = None
+    latest_doc_stats: Dict[str, Any] = {}
     for idx, doc in enumerate(chosen_docs, start=1):
         graph = doc.get("graph", {})
         tracked = graph.get("tracked_objects", [])
@@ -331,6 +367,33 @@ def retrieve_temporal_subgraph(
         anomalies.sort(key=lambda t: _safe_float(t.get("total_displacement", 0.0)), reverse=True)
         anomalies = anomalies[:4]
 
+        human_tracks = 0
+        moving_human_tracks = 0
+        for track in tracked:
+            if not isinstance(track, dict):
+                continue
+            lbl = str(track.get("primary_label", "unknown")).lower()
+            if lbl != "human":
+                continue
+            human_tracks += 1
+            state = str(track.get("movement_state", "stationary")).lower()
+            if state != "stationary":
+                moving_human_tracks += 1
+
+        total_tracks_sum += _safe_int(doc.get("total_tracks", len(tracked)))
+        total_moving_sum += _safe_int(doc.get("moving_objects", len(movement_events)))
+        total_human_tracks_sum += human_tracks
+        doc_end = doc.get("end_dt")
+        if doc_end is not None and (latest_doc_end is None or doc_end > latest_doc_end):
+            latest_doc_end = doc_end
+            latest_doc_stats = {
+                "run_name": doc.get("run_name"),
+                "human_tracks": human_tracks,
+                "moving_human_tracks": moving_human_tracks,
+                "total_tracks": _safe_int(doc.get("total_tracks", len(tracked))),
+                "moving_objects": _safe_int(doc.get("moving_objects", len(movement_events))),
+            }
+
         context_lines.append(
             f"[Graph {idx}] Run={doc.get('run_name')} "
             f"Range={doc.get('start_label')} -> {doc.get('end_label')} "
@@ -347,6 +410,27 @@ def retrieve_temporal_subgraph(
                 speed = track.get("avg_speed_m_per_s", None)
                 speed_txt = f", speed={_safe_float(speed):.3f}m/s" if speed is not None else ""
                 context_lines.append(f"  - Track {track_id}: {lbl}, {state}, disp={disp:.2f}m{speed_txt}")
+
+                traj = track.get("trajectory", [])
+                norm_traj: List[List[float]] = []
+                if isinstance(traj, list):
+                    for point in traj:
+                        if isinstance(point, (list, tuple)) and len(point) >= 2:
+                            x = _safe_float(point[0])
+                            y = _safe_float(point[1])
+                            z = _safe_float(point[2]) if len(point) >= 3 else 0.0
+                            norm_traj.append([x, y, z])
+                if len(norm_traj) >= 2 and len(visual_tracks) < 24:
+                    visual_tracks.append(
+                        {
+                            "run_name": str(doc.get("run_name", "")),
+                            "track_id": track_id,
+                            "label": lbl,
+                            "state": state,
+                            "displacement": disp,
+                            "trajectory": norm_traj[:24],
+                        }
+                    )
 
         if top_events:
             context_lines.append("  Velocity temporal edges (movement events):")
@@ -389,14 +473,37 @@ def retrieve_temporal_subgraph(
                 "end_label": doc.get("end_label"),
                 "total_tracks": doc.get("total_tracks"),
                 "moving_objects": doc.get("moving_objects"),
+                "human_tracks": human_tracks,
+                "moving_human_tracks": moving_human_tracks,
             }
         )
+
+    if not latest_doc_stats and selected_doc_payloads:
+        first = selected_doc_payloads[0]
+        latest_doc_stats = {
+            "run_name": first.get("run_name"),
+            "human_tracks": _safe_int(first.get("human_tracks", 0)),
+            "moving_human_tracks": _safe_int(first.get("moving_human_tracks", 0)),
+            "total_tracks": _safe_int(first.get("total_tracks", 0)),
+            "moving_objects": _safe_int(first.get("moving_objects", 0)),
+        }
 
     return {
         "selected_docs": selected_doc_payloads,
         "context_text": "\n".join(context_lines),
         "evidence_lines": evidence_lines,
         "coverage": summarize_temporal_coverage(chosen_docs),
+        "aggregate_stats": {
+            "runs": len(selected_doc_payloads),
+            "total_tracks_sum": total_tracks_sum,
+            "total_moving_sum": total_moving_sum,
+            "total_human_tracks_sum": total_human_tracks_sum,
+            "latest_doc": latest_doc_stats,
+        },
+        "visual_payload": {
+            "title": "Temporal Motion Vector Graph (retrieved evidence)",
+            "tracks": visual_tracks,
+        },
     }
 
 
@@ -560,18 +667,128 @@ def _fallback_answer(question: str, retrieval: Dict[str, Any]) -> Dict[str, Any]
         confidence = "low"
     else:
         answer = (
-            f"Across {len(selected_docs)} retrieved temporal run(s) from "
-            f"{coverage.get('start_label', 'Unknown')} to {coverage.get('end_label', 'Unknown')}, "
-            f"the strongest evidence is concentrated in movement events and nearest-clearance edges. "
-            f"Use the highlighted tracks and anomalies to answer: {question}"
+            f"I could not generate a reliable free-form LLM response for this question. "
+            f"I used {len(selected_docs)} temporal run(s) from {coverage.get('start_label', 'Unknown')} "
+            f"to {coverage.get('end_label', 'Unknown')}. "
+            f"Please ask a more specific question (count, movement, hazard, or date range)."
         )
-        confidence = "medium"
+        confidence = "low"
     return {
         "answer": answer,
         "highlights": evidence[:4],
         "evidence": evidence[:6],
         "confidence": confidence,
     }
+
+
+def _deterministic_answer(question: str, retrieval: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    q = str(question).strip().lower()
+    if not q:
+        return None
+
+    selected_docs = retrieval.get("selected_docs", [])
+    if not selected_docs:
+        return None
+    coverage = retrieval.get("coverage", {})
+    stats = retrieval.get("aggregate_stats", {})
+    latest = stats.get("latest_doc", {}) if isinstance(stats, dict) else {}
+
+    count_query = _contains_any(q, ["how many", "count", "number of", "total"])
+    people_query = _contains_any(q, ["people", "person", "human", "worker", "operator"])
+    moving_query = _contains_any(q, ["moving", "movement", "move", "velocity", "speed"])
+    track_query = _contains_any(q, ["track", "object"])
+    date_query = _is_explicit_date_range_question(q) or _contains_any(q, ["what dates", "which dates", "when was", "when is"])
+    visual_query = _question_requests_visual(q) and _contains_any(q, ["movement", "moving", "trajectory", "vector", "path", "arrow", "link"])
+
+    if count_query and people_query:
+        runs = _safe_int(stats.get("runs", len(selected_docs)))
+        latest_humans = _safe_int(latest.get("human_tracks", 0))
+        latest_run = str(latest.get("run_name", selected_docs[0].get("run_name", "latest run")))
+        total_humans = _safe_int(stats.get("total_human_tracks_sum", 0))
+        if runs <= 1:
+            answer = f"{latest_humans} human track(s) were detected in the selected temporal run ({latest_run})."
+        else:
+            answer = (
+                f"{total_humans} human track(s) across {runs} selected runs "
+                f"(sum of run-local tracks). Latest run {latest_run} has {latest_humans}."
+            )
+        return {
+            "answer": answer,
+            "highlights": [
+                f"Date range: {coverage.get('start_label', 'Unknown')} -> {coverage.get('end_label', 'Unknown')}",
+                f"Latest run: {latest_run}",
+            ],
+            "evidence": retrieval.get("evidence_lines", [])[:6],
+            "confidence": "high",
+        }
+
+    if count_query and moving_query:
+        runs = _safe_int(stats.get("runs", len(selected_docs)))
+        total_moving = _safe_int(stats.get("total_moving_sum", 0))
+        latest_moving = _safe_int(latest.get("moving_objects", 0))
+        latest_run = str(latest.get("run_name", selected_docs[0].get("run_name", "latest run")))
+        if runs <= 1:
+            answer = f"{latest_moving} moving object track(s) were detected in the selected temporal run ({latest_run})."
+        else:
+            answer = (
+                f"{total_moving} moving object track(s) across {runs} selected runs "
+                f"(sum of run-local counts). Latest run {latest_run} has {latest_moving}."
+            )
+        return {
+            "answer": answer,
+            "highlights": [f"Date range: {coverage.get('start_label', 'Unknown')} -> {coverage.get('end_label', 'Unknown')}"],
+            "evidence": retrieval.get("evidence_lines", [])[:6],
+            "confidence": "high",
+        }
+
+    if count_query and track_query:
+        runs = _safe_int(stats.get("runs", len(selected_docs)))
+        total_tracks = _safe_int(stats.get("total_tracks_sum", 0))
+        latest_tracks = _safe_int(latest.get("total_tracks", 0))
+        latest_run = str(latest.get("run_name", selected_docs[0].get("run_name", "latest run")))
+        if runs <= 1:
+            answer = f"{latest_tracks} object track(s) were detected in the selected temporal run ({latest_run})."
+        else:
+            answer = (
+                f"{total_tracks} object track(s) across {runs} selected runs "
+                f"(sum of run-local counts). Latest run {latest_run} has {latest_tracks}."
+            )
+        return {
+            "answer": answer,
+            "highlights": [f"Date range: {coverage.get('start_label', 'Unknown')} -> {coverage.get('end_label', 'Unknown')}"],
+            "evidence": retrieval.get("evidence_lines", [])[:6],
+            "confidence": "high",
+        }
+
+    if visual_query:
+        visual_payload = retrieval.get("visual_payload", {})
+        tracks = visual_payload.get("tracks", []) if isinstance(visual_payload, dict) else []
+        answer = (
+            f"Rendered a motion vector graph with arrows for {len(tracks)} retrieved track trajectories "
+            f"from {coverage.get('start_label', 'Unknown')} to {coverage.get('end_label', 'Unknown')}."
+        )
+        return {
+            "answer": answer,
+            "highlights": [
+                "Arrows indicate movement direction (start -> end).",
+                "Lines show track trajectories in XY space.",
+            ],
+            "evidence": retrieval.get("evidence_lines", [])[:6],
+            "confidence": "high",
+        }
+
+    if date_query:
+        answer = (
+            f"Selected temporal data covers {coverage.get('start_label', 'Unknown')} "
+            f"to {coverage.get('end_label', 'Unknown')}."
+        )
+        return {
+            "answer": answer,
+            "highlights": [f"Runs selected: {len(selected_docs)}"],
+            "evidence": retrieval.get("evidence_lines", [])[:6],
+            "confidence": "high",
+        }
+    return None
 
 
 def _normalize_answer_payload(data: Dict[str, Any], retrieval: Dict[str, Any]) -> Dict[str, Any]:
@@ -627,7 +844,15 @@ def answer_temporal_question(
         fallback = _fallback_answer(question, retrieval)
         fallback["selected_docs"] = []
         fallback["coverage"] = retrieval.get("coverage", summarize_temporal_coverage([]))
+        fallback["visual_payload"] = retrieval.get("visual_payload") if _question_requests_visual(question) else None
         return fallback
+
+    deterministic = _deterministic_answer(question, retrieval)
+    if deterministic is not None:
+        deterministic["selected_docs"] = retrieval.get("selected_docs", [])
+        deterministic["coverage"] = retrieval.get("coverage", summarize_temporal_coverage([]))
+        deterministic["visual_payload"] = retrieval.get("visual_payload") if _question_requests_visual(question) else None
+        return deterministic
 
     history = list(chat_history or [])[-4:]
     history_lines: List[str] = []
@@ -674,4 +899,5 @@ def answer_temporal_question(
 
     result["selected_docs"] = retrieval.get("selected_docs", [])
     result["coverage"] = retrieval.get("coverage", summarize_temporal_coverage([]))
+    result["visual_payload"] = retrieval.get("visual_payload") if _question_requests_visual(question) else None
     return result

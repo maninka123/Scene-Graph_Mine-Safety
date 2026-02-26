@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import streamlit as st
+import plotly.graph_objects as go
 
 PANDAS_IMPORT_ERROR = None
 try:
@@ -326,7 +327,139 @@ def _render_llm_single_structured(llm_json: Dict):
         st.json(llm_json)
 
 
-def _render_llm_temporal_structured(llm_json: Dict):
+def _extract_focus_track_ids(llm_json: Dict) -> List[int]:
+    ids = []
+    if not isinstance(llm_json, dict):
+        return ids
+    for hz in llm_json.get("temporal_hazards", []):
+        if not isinstance(hz, dict):
+            continue
+        for tid in hz.get("track_ids", []):
+            try:
+                ids.append(int(tid))
+            except Exception:
+                continue
+    for item in llm_json.get("object_identifications", []):
+        if not isinstance(item, dict):
+            continue
+        tid = item.get("track_id", None)
+        if tid is None:
+            continue
+        try:
+            ids.append(int(tid))
+        except Exception:
+            continue
+    # Preserve order while deduplicating.
+    seen = set()
+    out = []
+    for tid in ids:
+        if tid in seen:
+            continue
+        seen.add(tid)
+        out.append(tid)
+    return out
+
+
+def _build_visual_payload_from_temporal_graph(temporal_graph: Dict, llm_json: Dict, max_tracks: int = 14) -> Optional[Dict]:
+    if not isinstance(temporal_graph, dict):
+        return None
+    tracked = temporal_graph.get("tracked_objects", [])
+    if not isinstance(tracked, list) or not tracked:
+        return None
+
+    focus_ids = set(_extract_focus_track_ids(llm_json))
+    scored = []
+    for track in tracked:
+        if not isinstance(track, dict):
+            continue
+        try:
+            tid = int(track.get("track_id", -1))
+        except Exception:
+            tid = -1
+        disp = float(track.get("total_displacement", 0.0) or 0.0)
+        score = disp + (5.0 if tid in focus_ids else 0.0)
+        scored.append((track, score))
+    scored.sort(key=lambda x: x[1], reverse=True)
+
+    visual_tracks = []
+    for track, _ in scored:
+        tid = int(track.get("track_id", -1))
+        traj = track.get("trajectory", [])
+        if not isinstance(traj, list) or len(traj) < 2:
+            continue
+        norm_traj = []
+        for p in traj:
+            if not isinstance(p, (list, tuple)) or len(p) < 2:
+                continue
+            try:
+                x = float(p[0])
+                y = float(p[1])
+                z = float(p[2]) if len(p) >= 3 else 0.0
+            except Exception:
+                continue
+            norm_traj.append([x, y, z])
+        if len(norm_traj) < 2:
+            continue
+        visual_tracks.append(
+            {
+                "track_id": tid,
+                "label": _txt(track.get("primary_label", "unknown")),
+                "state": _txt(track.get("movement_state", "unknown")),
+                "displacement": float(track.get("total_displacement", 0.0) or 0.0),
+                "trajectory": norm_traj[:24],
+            }
+        )
+        if len(visual_tracks) >= max_tracks:
+            break
+    if not visual_tracks:
+        return None
+    return {
+        "title": "LLM-Guided Temporal Vector Graph",
+        "tracks": visual_tracks,
+    }
+
+
+def _build_hazard_severity_figure(llm_json: Dict) -> Optional[go.Figure]:
+    if not isinstance(llm_json, dict):
+        return None
+    hazards = llm_json.get("temporal_hazards", [])
+    if not isinstance(hazards, list) or not hazards:
+        return None
+    counts = {"high": 0, "medium": 0, "low": 0, "unknown": 0}
+    for hz in hazards:
+        if not isinstance(hz, dict):
+            continue
+        sev = _severity_from_item(hz)
+        if sev not in counts:
+            sev = "unknown"
+        counts[sev] += 1
+    if sum(counts.values()) == 0:
+        return None
+    order = ["high", "medium", "low", "unknown"]
+    color_map = {"high": "#ef4444", "medium": "#f59e0b", "low": "#22c55e", "unknown": "#9ca3af"}
+    fig = go.Figure(
+        data=[
+            go.Bar(
+                x=[k.title() for k in order],
+                y=[counts[k] for k in order],
+                marker={"color": [color_map[k] for k in order]},
+                text=[counts[k] for k in order],
+                textposition="outside",
+            )
+        ]
+    )
+    fig.update_layout(
+        title="LLM Temporal Hazards by Severity",
+        template="plotly_dark",
+        height=280,
+        margin={"l": 14, "r": 8, "t": 42, "b": 14},
+        xaxis_title="Severity",
+        yaxis_title="Hazard Count",
+    )
+    return fig
+
+
+def _render_llm_temporal_structured(llm_json: Dict, temporal_graph: Optional[Dict] = None):
     if not isinstance(llm_json, dict):
         st.warning("LLM JSON format is not an object. Showing raw content.")
         st.json(llm_json)
@@ -355,6 +488,22 @@ def _render_llm_temporal_structured(llm_json: Dict):
 
     buckets = _extract_temporal_issues(llm_json)
     _render_issue_sections(buckets)
+
+    st.markdown("#### Visual Reasoning Aids")
+    left, right = st.columns(2)
+    with left:
+        fig_hz = _build_hazard_severity_figure(llm_json)
+        if fig_hz is not None:
+            st.plotly_chart(fig_hz, use_container_width=True)
+        else:
+            st.info("No hazard severity plot available.")
+    with right:
+        visual_payload = _build_visual_payload_from_temporal_graph(temporal_graph or {}, llm_json, max_tracks=12)
+        fig_vec = _build_temporal_vector_figure(visual_payload or {})
+        if fig_vec is not None:
+            st.plotly_chart(fig_vec, use_container_width=True)
+        else:
+            st.info("No trajectory vector graph available.")
 
     with st.expander("Show Raw LLM JSON"):
         st.json(llm_json)
@@ -447,6 +596,7 @@ def _render_temporal_results(run_summary: Dict, class_meta: Dict):
         st.plotly_chart(fig_bar, use_container_width=True)
         _save_plot_html(fig_bar, run_dir / "plots" / "temporal_class_distribution.html")
 
+    temporal_graph = {}
     temporal_graph_path = Path(outputs["temporal_graph"])
     if temporal_graph_path.exists():
         temporal_graph = _read_json(temporal_graph_path)
@@ -462,7 +612,7 @@ def _render_temporal_results(run_summary: Dict, class_meta: Dict):
     if llm_path and Path(llm_path).exists():
         st.markdown("### LLM Output")
         st.caption(f"LLM inference time: {metrics.get('llm_inference_seconds', 0.0):.3f} s")
-        _render_llm_temporal_structured(_read_json(Path(llm_path)))
+        _render_llm_temporal_structured(_read_json(Path(llm_path)), temporal_graph=temporal_graph)
     elif llm_status == "skipped":
         st.info("LLM step was skipped for this run.")
     else:
@@ -483,6 +633,98 @@ def _confidence_chip(level: str) -> str:
     if low == "low":
         return "Low confidence"
     return "Medium confidence"
+
+
+def _trajectory_color(label: str) -> str:
+    palette = {
+        "human": "#6fd3ff",
+        "equipment": "#ffb454",
+        "conveyor": "#8ce99a",
+        "wall": "#adb5bd",
+        "roof": "#ced4da",
+        "other": "#f8c291",
+    }
+    return palette.get(str(label).lower(), "#9ec5fe")
+
+
+def _build_temporal_vector_figure(visual_payload: Dict) -> Optional[go.Figure]:
+    tracks = visual_payload.get("tracks", []) if isinstance(visual_payload, dict) else []
+    if not isinstance(tracks, list) or not tracks:
+        return None
+
+    fig = go.Figure()
+    annotations = []
+    rendered = 0
+    for track in tracks:
+        if not isinstance(track, dict):
+            continue
+        traj = track.get("trajectory", [])
+        if not isinstance(traj, list) or len(traj) < 2:
+            continue
+        xs, ys = [], []
+        for p in traj:
+            if not isinstance(p, (list, tuple)) or len(p) < 2:
+                continue
+            xs.append(float(p[0]))
+            ys.append(float(p[1]))
+        if len(xs) < 2:
+            continue
+
+        track_id = track.get("track_id", "?")
+        label = _txt(track.get("label", "unknown"))
+        state = _txt(track.get("state", "unknown"))
+        color = _trajectory_color(label)
+        fig.add_trace(
+            go.Scatter(
+                x=xs,
+                y=ys,
+                mode="lines+markers",
+                line={"width": 2.2, "color": color},
+                marker={"size": 5, "color": color},
+                name=f"T{track_id} {label}",
+                hovertemplate=(
+                    f"Track {track_id}<br>Label: {label}<br>State: {state}"
+                    "<br>x=%{x:.2f}, y=%{y:.2f}<extra></extra>"
+                ),
+            )
+        )
+        annotations.append(
+            {
+                "x": xs[-1],
+                "y": ys[-1],
+                "ax": xs[-2],
+                "ay": ys[-2],
+                "xref": "x",
+                "yref": "y",
+                "axref": "x",
+                "ayref": "y",
+                "showarrow": True,
+                "arrowhead": 3,
+                "arrowsize": 1.0,
+                "arrowwidth": 1.6,
+                "arrowcolor": color,
+                "opacity": 0.95,
+            }
+        )
+        rendered += 1
+        if rendered >= 18:
+            break
+
+    if rendered == 0:
+        return None
+
+    fig.update_layout(
+        title=_txt(visual_payload.get("title", "Temporal Motion Vector Graph")),
+        template="plotly_dark",
+        height=360,
+        margin={"l": 18, "r": 12, "t": 45, "b": 18},
+        xaxis_title="X position (m)",
+        yaxis_title="Y position (m)",
+        legend={"orientation": "h"},
+        annotations=annotations,
+    )
+    fig.update_yaxes(scaleanchor="x", scaleratio=1)
+    return fig
 
 
 def _render_temporal_graphrag_section(controls: Dict):
@@ -563,6 +805,11 @@ def _render_temporal_graphrag_section(controls: Dict):
         with st.chat_message("assistant"):
             st.markdown(f"<div class='rag-answer-box'>{_txt(turn.get('answer', ''))}</div>", unsafe_allow_html=True)
             st.caption(_confidence_chip(_txt(turn.get("confidence", "medium"))))
+            visual_payload = turn.get("visual_payload")
+            if isinstance(visual_payload, dict):
+                fig = _build_temporal_vector_figure(visual_payload)
+                if fig is not None:
+                    st.plotly_chart(fig, use_container_width=True)
             highlights = turn.get("highlights", [])
             if isinstance(highlights, list) and highlights:
                 st.markdown("Key points:")
@@ -606,6 +853,7 @@ def _render_temporal_graphrag_section(controls: Dict):
             "highlights": result.get("highlights", []),
             "evidence": result.get("evidence", []),
             "confidence": _txt(result.get("confidence", "medium")),
+            "visual_payload": result.get("visual_payload"),
         }
         st.session_state[chat_key] = history + [entry]
         st.rerun()
