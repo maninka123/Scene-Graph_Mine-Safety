@@ -76,7 +76,8 @@ def anomaly_nodes_from_probabilities(
     xyz = np.asarray(points, dtype=float)
     entropy = predictive_entropy(probabilities)
     high = xyz[entropy > entropy_threshold]
-    high_entropy = entropy[entropy > entropy_threshold]
+    original_high = high.copy()
+    original_high_entropy = entropy[entropy > entropy_threshold]
     if len(high) < minimum_voxels:
         return []
     if closing_iterations > 0:
@@ -97,6 +98,13 @@ def anomaly_nodes_from_probabilities(
     nodes: list[SceneNode] = []
     for index, cluster in enumerate(clusters, 1):
         mins, maxs = cluster.min(axis=0), cluster.max(axis=0)
+        within_cluster_bounds = np.all(
+            (original_high >= mins - voxel_size_m) & (original_high <= maxs + voxel_size_m), axis=1
+        )
+        cluster_entropy = original_high_entropy[within_cluster_bounds]
+        if not len(cluster_entropy):
+            nearest = int(np.argmin(np.linalg.norm(original_high - cluster.mean(axis=0), axis=1)))
+            cluster_entropy = original_high_entropy[[nearest]]
         nodes.append(
             SceneNode(
                 id=f"anomaly-{index:03d}",
@@ -107,7 +115,7 @@ def anomaly_nodes_from_probabilities(
                 volume_m3=float(np.prod(np.maximum(maxs - mins, 0.0))),
                 voxel_count=len(cluster),
                 confidence=0.0,
-                entropy=float(high_entropy.mean()),
+                entropy=float(cluster_entropy.mean()),
                 is_anomaly=True,
             )
         )

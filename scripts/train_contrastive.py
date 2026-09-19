@@ -25,7 +25,10 @@ def main() -> None:
     dataset = NpzPointCloudDataset(args.manifest)
     loader = DataLoader(dataset, batch_size=train["batch_size"], shuffle=True, collate_fn=lambda batch: batch)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = ContrastiveMinkUNet(pcfg["input_features"], pcfg["feature_dim"], pcfg["projection_dim"]).to(device)
+    model = ContrastiveMinkUNet(
+        in_channels=pcfg["input_features"], width=pcfg["backbone_width"],
+        feature_dim=pcfg["feature_dim"], projection_dim=pcfg["projection_dim"],
+    ).to(device)
     optimiser = torch.optim.Adam(model.parameters(), lr=train["learning_rate"])
     schedule = torch.optim.lr_scheduler.CosineAnnealingLR(optimiser, T_max=train["epochs"])
     me = require_minkowski()

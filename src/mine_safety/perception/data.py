@@ -51,7 +51,7 @@ class NpzPointCloudDataset(Dataset):
 
 
 def sparse_sample(points: np.ndarray, colors: np.ndarray, voxel_size_m: float, labels=None) -> dict:
-    coordinates, features, inverse = voxelize(points, colors, voxel_size_m)
+    coordinates, features, _inverse = voxelize(points, colors, voxel_size_m)
     result = {"coordinates": coordinates, "features": features}
     if labels is not None:
         first = np.unique(np.floor(points / voxel_size_m).astype(np.int32), axis=0, return_index=True)[1]

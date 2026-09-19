@@ -2,12 +2,43 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from math import sqrt
-from typing import Callable
 
 from mine_safety.schemas import ReasoningResult, SafetyAlert, SceneGraph
+
+
+def graph_metadata(graph: SceneGraph, alerts: list[SafetyAlert] | None = None) -> dict:
+    return {
+        "classes": sorted({node.label for node in graph.nodes}),
+        "instance_ids": sorted({node.id for node in graph.nodes}),
+        "track_ids": sorted({node.track_id for node in graph.nodes if node.track_id}),
+        "spatial_anchor": graph.metadata.get("spatial_anchor"),
+        "relations": sorted({edge.relation for edge in graph.edges}),
+        "movement_states": sorted({node.movement_state for node in graph.nodes}),
+        "safety_flags": sorted({alert.rule for alert in alerts or []}),
+        "has_anomaly": any(node.is_anomaly for node in graph.nodes),
+    }
+
+
+def _linked(metadata: dict, candidate: dict) -> bool:
+    same_identity = bool(
+        set(metadata.get("instance_ids", [])) & set(candidate.get("instance_ids", []))
+        or set(metadata.get("track_ids", [])) & set(candidate.get("track_ids", []))
+    )
+    same_anchor = bool(
+        metadata.get("spatial_anchor")
+        and metadata.get("spatial_anchor") == candidate.get("spatial_anchor")
+    )
+    compatible_classes = bool(set(metadata.get("classes", [])) & set(candidate.get("classes", [])))
+    compatible_mechanism = bool(
+        set(metadata.get("relations", [])) & set(candidate.get("relations", []))
+        or set(metadata.get("movement_states", [])) & set(candidate.get("movement_states", []))
+        or (metadata.get("has_anomaly") and candidate.get("has_anomaly"))
+    )
+    return same_identity or (same_anchor and compatible_classes and compatible_mechanism)
 
 
 def summarise_graph(graph: SceneGraph, alerts: list[SafetyAlert], result: ReasoningResult | None = None) -> str:
@@ -16,23 +47,29 @@ def summarise_graph(graph: SceneGraph, alerts: list[SafetyAlert], result: Reason
         labels[node.label] = labels.get(node.label, 0) + 1
     moving = [node.id for node in graph.nodes if node.movement_state in {"slow", "fast"}]
     anomalies = [node.id for node in graph.nodes if node.is_anomaly]
+    risk_interpretations = []
+    if result:
+        risk_interpretations = [condition.model_dump(mode="json") for condition in result.risk_conditions]
     return json.dumps({
         "graph_id": graph.graph_id,
         "objects": labels,
         "moving": moving,
         "anomalies": anomalies,
         "rules": [alert.rule for alert in alerts],
-        "prior_statuses": [hazard.status for hazard in result.hazards] if result else [],
+        "tracks": {node.id: node.track_id for node in graph.nodes if node.track_id},
+        "relations": sorted({edge.relation for edge in graph.edges}),
+        "spatial_anchor": graph.metadata.get("spatial_anchor"),
+        "advisory_risk_interpretations": risk_interpretations,
     }, sort_keys=True)
 
 
 def should_retrieve(
-    *, anomaly_persistence_seconds: float = 0.0, contextual_statuses: list[str] | None = None,
+    *, anomaly_persistence_seconds: float = 0.0, contextual_patterns: list[str] | None = None,
     maximum_similarity: float = 0.0, persistence_trigger: float = 3.0, similarity_trigger: float = 0.70,
 ) -> bool:
     return (
         anomaly_persistence_seconds > persistence_trigger
-        or bool({"developing", "unresolved"} & set(contextual_statuses or []))
+        or "developing_over_window" in set(contextual_patterns or [])
         or maximum_similarity > similarity_trigger
     )
 
@@ -63,20 +100,19 @@ class InMemoryGraphArchive:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "graph_id": graph.graph_id,
             "summary": summary,
-            "metadata": {
-                "classes": sorted({node.label for node in graph.nodes}),
-                "safety_flags": sorted({alert.rule for alert in alerts}),
-                "has_anomaly": any(node.is_anomaly for node in graph.nodes),
-            },
+            "metadata": graph_metadata(graph, alerts),
             "embedding": self.embed(summary),
         }
         self.records.append(memory)
         return {key: value for key, value in memory.items() if key != "embedding"}
 
-    def search(self, summary: str, top_k: int = 5) -> list[dict]:
+    def search(self, summary: str, top_k: int = 5, metadata: dict | None = None) -> list[dict]:
         query = self.embed(summary)
+        records = self.records
+        if metadata is not None:
+            records = [item for item in records if _linked(metadata, item["metadata"])]
         ranked = sorted(
-            ((float(_cosine(query, item["embedding"])), item) for item in self.records),
+            ((float(_cosine(query, item["embedding"])), item) for item in records),
             key=lambda pair: pair[0], reverse=True,
         )
         return [
@@ -114,14 +150,13 @@ class QdrantGraphArchive:
         summary = summarise_graph(graph, alerts, result)
         point_id = str(uuid.uuid4())
         memory_id = f"memory-{point_id}"
+        metadata = graph_metadata(graph, alerts)
         payload = {
             "memory_id": memory_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "graph_id": graph.graph_id,
             "summary": summary,
-            "classes": sorted({node.label for node in graph.nodes}),
-            "safety_flags": sorted({alert.rule for alert in alerts}),
-            "has_anomaly": any(node.is_anomaly for node in graph.nodes),
+            **metadata,
         }
         vector = self.encoder.encode(summary, normalize_embeddings=True).tolist()
         self.client.upsert(
@@ -130,11 +165,13 @@ class QdrantGraphArchive:
         )
         return payload
 
-    def search(self, summary: str, top_k: int = 5) -> list[dict]:
+    def search(self, summary: str, top_k: int = 5, metadata: dict | None = None) -> list[dict]:
         vector = self.encoder.encode(summary, normalize_embeddings=True).tolist()
         candidates = self.client.query_points(
-            collection_name=self.collection, query=vector, limit=max(top_k * 4, top_k), with_payload=True,
+            collection_name=self.collection, query=vector, limit=max(top_k * 8, top_k), with_payload=True,
         ).points
+        if metadata is not None:
+            candidates = [item for item in candidates if _linked(metadata, dict(item.payload))]
         if not candidates:
             return []
         pairs = [(summary, str(item.payload.get("summary", ""))) for item in candidates]

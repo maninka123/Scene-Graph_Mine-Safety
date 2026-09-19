@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from mine_safety.config import load_config
-from mine_safety.pipeline import MineSafetyPipeline
 from mine_safety.perception.inference import PointCloudPerceiver
+from mine_safety.pipeline import MineSafetyPipeline
 
 
 def main() -> None:

@@ -26,7 +26,10 @@ def main() -> None:
     dataset = NpzPointCloudDataset(args.manifest)
     loader = DataLoader(dataset, batch_size=train["batch_size"], shuffle=True, collate_fn=lambda batch: batch)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = SemanticMinkUNet(pcfg["input_features"], pcfg["feature_dim"], len(pcfg["classes"])).to(device)
+    model = SemanticMinkUNet(
+        in_channels=pcfg["input_features"], width=pcfg["backbone_width"],
+        feature_dim=pcfg["feature_dim"], num_classes=len(pcfg["classes"]),
+    ).to(device)
     if args.pretrained.exists():
         saved = torch.load(args.pretrained, map_location="cpu")
         state = saved.get("model_state_dict", saved)

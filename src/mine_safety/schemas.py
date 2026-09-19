@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
-from pydantic import BaseModel, Field, field_validator, model_validator
-
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Vector3 = tuple[float, float, float]
 
@@ -59,24 +58,95 @@ class SafetyAlert(BaseModel):
     evidence: dict[str, Any] = Field(default_factory=dict)
 
 
-class RiskCondition(BaseModel):
+def _require_word_limit(value: str, maximum: int, field_name: str) -> str:
+    if len(value.split()) > maximum:
+        raise ValueError(f"{field_name} must contain at most {maximum} words")
+    return value
+
+
+class ContextualRiskCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     condition: str
     object_ids: list[str]
+    evidence: str
     severity: Literal["low", "medium", "high"]
-    status: Literal["observed", "developing", "unresolved", "recurring", "escalating"]
+    temporal_pattern: Literal["current_frame", "developing_over_window", "recurring"]
+
+    @field_validator("condition")
+    @classmethod
+    def condition_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 8, "condition")
+
+    @field_validator("evidence")
+    @classmethod
+    def evidence_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 30, "evidence")
+
+
+class ContextualReasoningResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hazard_detected: bool
+    risk_conditions: list[ContextualRiskCondition] = Field(default_factory=list, max_length=3)
     explanation: str
-    current_evidence: list[str] = Field(default_factory=list)
-    memory_ids: list[str] = Field(default_factory=list)
-    historical_evidence: list[str] = Field(default_factory=list)
-
-
-class ReasoningResult(BaseModel):
-    hazards: list[RiskCondition] = Field(default_factory=list, max_length=3)
-    summary: str
-    no_additional_hazard: bool = False
 
     @model_validator(mode="after")
-    def consistent_empty_state(self) -> "ReasoningResult":
-        if self.no_additional_hazard and self.hazards:
-            raise ValueError("no_additional_hazard cannot be true when hazards are present")
+    def consistent_hazard_state(self) -> ContextualReasoningResult:
+        if self.hazard_detected != bool(self.risk_conditions):
+            raise ValueError("hazard_detected must match whether risk_conditions is non-empty")
         return self
+
+    @field_validator("explanation")
+    @classmethod
+    def explanation_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 40, "explanation")
+
+
+class LongitudinalRiskCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    condition: str
+    object_ids: list[str]
+    memory_ids: list[str]
+    current_evidence: str
+    historical_evidence: str
+    severity: Literal["low", "medium", "high"]
+    temporal_pattern: Literal["recurring", "escalating"]
+
+    @field_validator("condition")
+    @classmethod
+    def condition_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 8, "condition")
+
+    @field_validator("current_evidence")
+    @classmethod
+    def current_evidence_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 30, "current_evidence")
+
+    @field_validator("historical_evidence")
+    @classmethod
+    def historical_evidence_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 35, "historical_evidence")
+
+
+class LongitudinalReasoningResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hazard_detected: bool
+    risk_conditions: list[LongitudinalRiskCondition] = Field(default_factory=list, max_length=3)
+    explanation: str
+
+    @model_validator(mode="after")
+    def consistent_hazard_state(self) -> LongitudinalReasoningResult:
+        if self.hazard_detected != bool(self.risk_conditions):
+            raise ValueError("hazard_detected must match whether risk_conditions is non-empty")
+        return self
+
+    @field_validator("explanation")
+    @classmethod
+    def explanation_word_limit(cls, value: str) -> str:
+        return _require_word_limit(value, 40, "explanation")
+
+
+ReasoningResult: TypeAlias = ContextualReasoningResult | LongitudinalReasoningResult

@@ -3,10 +3,20 @@ from __future__ import annotations
 from mine_safety.config import load_config
 from mine_safety.graph.scene import build_scene_graph
 from mine_safety.graph.temporal import TemporalGraphTracker
-from mine_safety.reasoning.graphrag import InMemoryGraphArchive, should_retrieve, summarise_graph
+from mine_safety.reasoning.graphrag import (
+    InMemoryGraphArchive,
+    graph_metadata,
+    should_retrieve,
+    summarise_graph,
+)
 from mine_safety.reasoning.llm import LocalQwenReasoner
 from mine_safety.rules import SafetyRuleEngine
-from mine_safety.schemas import ReasoningResult, SceneGraph, SceneNode
+from mine_safety.schemas import (
+    ContextualReasoningResult,
+    LongitudinalReasoningResult,
+    SceneGraph,
+    SceneNode,
+)
 
 
 class MineSafetyPipeline:
@@ -30,23 +40,25 @@ class MineSafetyPipeline:
 
     def process_graph(self, graph: SceneGraph, run_llm: bool = False) -> dict:
         tracked = self.tracker.update(graph)
-        temporal = self.tracker.snapshot()
         alerts = self.rules.evaluate(tracked)
-        contextual: ReasoningResult | None = None
-        longitudinal: ReasoningResult | None = None
+        temporal = self.tracker.snapshot()
+        contextual: ContextualReasoningResult | None = None
+        longitudinal: LongitudinalReasoningResult | None = None
         retrieved: list[dict] = []
         if run_llm:
             if self.reasoner is None:
                 self.reasoner = LocalQwenReasoner(self.config["reasoning"])
             contextual = self.reasoner.reason(tracked, temporal, alerts)
             candidates = self.archive.search(
-                summarise_graph(tracked, alerts, contextual), self.config["reasoning"]["retrieval_top_k"]
+                summarise_graph(tracked, alerts, contextual),
+                self.config["reasoning"]["retrieval_top_k"],
+                metadata=graph_metadata(tracked, alerts),
             )
             maximum_similarity = max((item["similarity"] for item in candidates), default=0.0)
             anomaly_duration = self._maximum_anomaly_duration()
             if should_retrieve(
                 anomaly_persistence_seconds=anomaly_duration,
-                contextual_statuses=[item.status for item in contextual.hazards],
+                contextual_patterns=[item.temporal_pattern for item in contextual.risk_conditions],
                 maximum_similarity=maximum_similarity,
                 persistence_trigger=self.config["reasoning"]["anomaly_persistence_seconds"],
                 similarity_trigger=self.config["reasoning"]["similarity_trigger"],

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from itertools import permutations
 from math import dist
-from typing import Iterable
 
 from mine_safety.schemas import SceneEdge, SceneGraph, SceneNode
 

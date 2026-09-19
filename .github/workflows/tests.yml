@@ -13,5 +13,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[app,dev]"
+      - run: ruff check src app scripts tests
       - run: pytest -q
+      - name: Smoke-test Streamlit app
+        run: |
+          python - <<'PY'
+          from streamlit.testing.v1 import AppTest
+
+          app = AppTest.from_file("app/scene_lab.py").run(timeout=30)
+          assert not app.exception, [exception.value for exception in app.exception]
+          PY

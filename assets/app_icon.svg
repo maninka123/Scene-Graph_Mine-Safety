@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="MineGraph Safety Lab">
+  <defs>
+    <linearGradient id="g" x1="18" y1="14" x2="110" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2997ff"/>
+      <stop offset="1" stop-color="#0057b8"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="29" fill="#f5f5f7"/>
+  <path d="M30 68a34 34 0 0 1 68 0v7H30z" fill="url(#g)"/>
+  <path d="M57 33h14v35H57z" fill="#e8f3ff"/>
+  <path d="M22 73h84a8 8 0 0 1 8 8v4H14v-4a8 8 0 0 1 8-8z" fill="#003f82"/>
+  <circle cx="42" cy="98" r="8" fill="#30d158"/>
+  <circle cx="64" cy="105" r="8" fill="#ff9f0a"/>
+  <circle cx="87" cy="96" r="8" fill="#ff453a"/>
+  <path d="M48 99l9 4m14 0l9-4M48 94l31 1" fill="none" stroke="#1d1d1f" stroke-width="4" stroke-linecap="round"/>
+</svg>

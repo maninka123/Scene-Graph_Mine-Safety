@@ -29,6 +29,8 @@ class SafetyRuleEngine:
         self.intensity_history: deque[tuple[float, float]] = deque()
 
     def evaluate(self, graph: SceneGraph) -> list[SafetyAlert]:
+        for edge in graph.edges:
+            edge.safety_flags.clear()
         alerts: list[SafetyAlert] = []
         people = [node for node in graph.nodes if node.label.lower() in self.personnel]
         machines = [node for node in graph.nodes if node.label.lower() in self.equipment and node.active]
@@ -43,7 +45,7 @@ class SafetyRuleEngine:
                     clearance = _bbox_clearance(person, machine)
                 if centroid_distance <= self.config["safe_clearance_m"] or clearance <= self.config["safe_clearance_m"]:
                     alerts.append(SafetyAlert(
-                        rule="static_proximity", severity="critical",
+                        rule="proximity_violation", severity="critical",
                         object_ids=[person.id, machine.id],
                         message="Personnel is inside the configured equipment exclusion clearance.",
                         evidence={"centroid_distance_m": centroid_distance, "bbox_clearance_m": clearance},
@@ -57,7 +59,7 @@ class SafetyRuleEngine:
                     ttc = (centroid_distance - self.config["safe_clearance_m"]) / closing_speed
                     if 0 <= ttc <= self.config["ttc_threshold_seconds"]:
                         alerts.append(SafetyAlert(
-                            rule="predictive_collision", severity="critical",
+                            rule="ttc_warning", severity="critical",
                             object_ids=[person.id, machine.id], message="Predicted time-to-collision is below threshold.",
                             evidence={"ttc_seconds": ttc, "closing_speed_mps": closing_speed},
                         ))
@@ -77,7 +79,7 @@ class SafetyRuleEngine:
             density = len(nearby_people) / (pi * self.config["congestion_radius_m"] ** 2)
             if density > self.config["congestion_density_per_m2"]:
                 alerts.append(SafetyAlert(
-                    rule="operational_congestion", severity="high",
+                    rule="congestion", severity="high",
                     object_ids=[machine.id, *[node.id for node in nearby_people]],
                     message="Personnel density around active equipment exceeds the configured limit.",
                     evidence={"personnel_count": len(nearby_people), "density_per_m2": density},
@@ -89,10 +91,22 @@ class SafetyRuleEngine:
             while self.intensity_history and self.intensity_history[0][0] < cutoff:
                 self.intensity_history.popleft()
             rolling = sum(value for _, value in self.intensity_history) / len(self.intensity_history)
-            if rolling < self.config["visibility_intensity_threshold"]:
+            observed_window = self.intensity_history[-1][0] - self.intensity_history[0][0]
+            if (
+                observed_window >= self.config["visibility_window_seconds"]
+                and rolling < self.config["visibility_intensity_threshold"]
+            ):
                 alerts.append(SafetyAlert(
-                    rule="visibility_degradation", severity="high", object_ids=[],
+                    rule="low_visibility", severity="high", object_ids=[],
                     message="Rolling mean scene intensity indicates severely degraded visibility.",
                     evidence={"rolling_mean_intensity": rolling},
                 ))
+        graph.metadata["deterministic_safety_flags"] = [
+            alert.model_dump(mode="json") for alert in alerts
+        ]
+        for alert in alerts:
+            involved = set(alert.object_ids)
+            for edge in graph.edges:
+                if edge.source in involved and edge.target in involved and alert.rule not in edge.safety_flags:
+                    edge.safety_flags.append(alert.rule)
         return alerts

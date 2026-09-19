@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 try:
     import MinkowskiEngine as ME
@@ -82,10 +82,13 @@ class MinkUNetBackbone(nn.Module):
 
 
 class ContrastiveMinkUNet(nn.Module):
-    def __init__(self, in_channels: int = 6, feature_dim: int = 96, projection_dim: int = 128) -> None:
+    def __init__(
+        self, in_channels: int = 6, width: int = 32, feature_dim: int = 96,
+        projection_dim: int = 128,
+    ) -> None:
         super().__init__()
         me = require_minkowski()
-        self.backbone = MinkUNetBackbone(in_channels=in_channels, feature_dim=feature_dim)
+        self.backbone = MinkUNetBackbone(in_channels=in_channels, width=width, feature_dim=feature_dim)
         self.pool = me.MinkowskiGlobalAvgPooling()
         self.head = nn.Sequential(
             nn.Linear(feature_dim, feature_dim),
@@ -100,10 +103,13 @@ class ContrastiveMinkUNet(nn.Module):
 
 
 class SemanticMinkUNet(nn.Module):
-    def __init__(self, in_channels: int = 6, feature_dim: int = 96, num_classes: int = 9) -> None:
+    def __init__(
+        self, in_channels: int = 6, width: int = 32, feature_dim: int = 96,
+        num_classes: int = 9,
+    ) -> None:
         super().__init__()
         me = require_minkowski()
-        self.backbone = MinkUNetBackbone(in_channels=in_channels, feature_dim=feature_dim)
+        self.backbone = MinkUNetBackbone(in_channels=in_channels, width=width, feature_dim=feature_dim)
         self.head = me.MinkowskiConvolution(feature_dim, num_classes, 1, dimension=3)
 
     def forward(self, value):

@@ -6,6 +6,10 @@ perception:
   backbone_width: 32
   feature_dim: 96
   projection_dim: 128
+  # Implementation assumption: the paper specifies semantic instances but not these DBSCAN values.
+  instances:
+    dbscan_epsilon_m: 0.25
+    minimum_voxels: 20
   classes:
     - shearer_cutter
     - mining_face

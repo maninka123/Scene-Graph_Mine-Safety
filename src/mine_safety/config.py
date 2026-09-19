@@ -23,5 +23,5 @@ def load_config(path: str | Path | None = None, overrides: dict[str, Any] | None
     with config_path.open("r", encoding="utf-8") as handle:
         config = yaml.safe_load(handle)
     if not isinstance(config, dict):
-        raise ValueError(f"Configuration must be a mapping: {config_path}")
+        raise TypeError(f"Configuration must be a mapping: {config_path}")
     return _merge(config, overrides or {})

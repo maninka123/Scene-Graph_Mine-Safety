@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import torch
 
 from mine_safety.perception.anomaly import anomaly_nodes_from_probabilities
@@ -19,6 +18,7 @@ class PointCloudPerceiver:
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.model = SemanticMinkUNet(
             in_channels=config["perception"]["input_features"],
+            width=config["perception"]["backbone_width"],
             feature_dim=config["perception"]["feature_dim"],
             num_classes=len(config["perception"]["classes"]),
         ).to(self.device)
@@ -43,8 +43,14 @@ class PointCloudPerceiver:
         probabilities = torch.softmax(logits, dim=1).cpu().numpy()
         labels = probabilities.argmax(axis=1)
         voxel_points = features[:, 3:6]
+        instance_config = self.config["perception"]["instances"]
         nodes = extract_instances(
-            voxel_points, labels, probabilities, self.config["perception"]["classes"]
+            voxel_points,
+            labels,
+            probabilities,
+            self.config["perception"]["classes"],
+            epsilon_m=instance_config["dbscan_epsilon_m"],
+            minimum_voxels=instance_config["minimum_voxels"],
         )
         anomaly = self.config["anomaly"]
         nodes.extend(anomaly_nodes_from_probabilities(
