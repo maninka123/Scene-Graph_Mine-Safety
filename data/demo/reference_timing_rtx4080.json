@@ -1,0 +1,517 @@
+{
+  "metadata": {
+    "environment": {
+      "generated_at": "2026-04-28T14:57:58",
+      "repo_root": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation",
+      "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.29",
+      "python": "3.8.10",
+      "executable": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/.venv_wsl/bin/python",
+      "cuda_available": true,
+      "gpu": "NVIDIA GeForce RTX 4080 (16.0 GB VRAM)",
+      "packages": {
+        "torch": {
+          "version": "2.4.1+cu121",
+          "error": null
+        },
+        "MinkowskiEngine": {
+          "version": "0.5.4",
+          "error": null
+        },
+        "open3d": {
+          "version": "0.19.0",
+          "error": null
+        },
+        "transformers": {
+          "version": "4.46.3",
+          "error": null
+        },
+        "accelerate": {
+          "version": "1.0.1",
+          "error": null
+        },
+        "qdrant_client": {
+          "version": null,
+          "error": "No module named 'qdrant_client'"
+        },
+        "sklearn": {
+          "version": "1.3.2",
+          "error": null
+        },
+        "scipy": {
+          "version": "1.10.1",
+          "error": null
+        }
+      }
+    },
+    "args": {
+      "pcd_file": "Datasets/Data_all/PC_20260122_153641662.pcd",
+      "minkunet_config": "MinkUNET/configs/inference.yaml",
+      "minkunet_checkpoint": "MinkUNET/checkpoints/semantic_best.pt",
+      "llm_model": "Qwen/Qwen2.5-3B-Instruct",
+      "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+      "reranker_model": "Qwen/Qwen3-Reranker-0.6B",
+      "frame_repeats": 7,
+      "frame_warmups": 2,
+      "llm_repeats": 1,
+      "llm_warmups": 1,
+      "max_new_tokens": 320,
+      "graph_dist_threshold": 2.5,
+      "anomaly_entropy_threshold": 0.35,
+      "anomaly_dbscan_eps": 0.2,
+      "anomaly_min_voxels": 8,
+      "allow_download": false,
+      "skip_frame": false,
+      "skip_llm": false,
+      "skip_graphrag": false,
+      "output_root": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/[Test] Inferance_Timing/outputs"
+    },
+    "frame_level": {
+      "pcd_file": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/Datasets/Data_all/PC_20260122_153641662.pcd",
+      "minkunet_config": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/MinkUNET/configs/inference.yaml",
+      "minkunet_checkpoint": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/MinkUNET/checkpoints/semantic_best.pt",
+      "model_load_ms": 558.8012,
+      "pcd_read_ms": 45.2221,
+      "frame_repeats": 7,
+      "frame_warmups": 2,
+      "temporal_frame_pair": {
+        "source": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/AppUI/app_results/Temporal_Sequence/temporal_20260226_204437",
+        "prev_frame": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/AppUI/app_results/Temporal_Sequence/temporal_20260226_204437/frames/PC_20260206_230055209/scene_objects_segmented.json",
+        "curr_frame": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/AppUI/app_results/Temporal_Sequence/temporal_20260226_204437/frames/PC_20260219_175125456/scene_objects_segmented.json",
+        "frame_count": 5
+      },
+      "diagnostics": [
+        {
+          "iteration": 1,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 2,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 3,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 4,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 5,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 6,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        },
+        {
+          "iteration": 7,
+          "point_count": 48000,
+          "voxel_count": 11877,
+          "semantic_object_count": 8,
+          "graph_nodes": 8,
+          "graph_edges": 17,
+          "high_uncertainty_voxels": 332,
+          "anomaly_clusters": 8,
+          "temporal_updated_tracks": 8,
+          "temporal_movement_events": 3,
+          "deterministic_alerts": 0
+        }
+      ]
+    },
+    "temporal_llm": {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "model_load_ms": 53874.1685,
+      "model_meta": {
+        "dtype": "torch.bfloat16",
+        "device": "cuda:0",
+        "cache_dir": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/LLM/Model_Cache"
+      },
+      "prompt_file": "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/AppUI/app_results/Temporal_Sequence/temporal_20260226_204437/llm_temporal_prompt.txt",
+      "prompt_tokens": [
+        1657
+      ],
+      "llm_repeats": 1,
+      "llm_warmups": 1,
+      "max_new_tokens": 320,
+      "output_tokens": [
+        320
+      ],
+      "tokens_per_second": [
+        48.47128293705459
+      ],
+      "raw_outputs": [
+        "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/[Test] Inferance_Timing/outputs/timing_20260428_145747/artifacts/temporal_llm/temporal_llm_run_1.txt"
+      ],
+      "total_latency_note": "Full generation already includes first-token latency; total is therefore full generation latency, not first-token + full generation."
+    },
+    "graphrag": {
+      "question": "Assess temporal movement hazards, equipment proximity, and any anomaly evidence in the available mining scene graphs.",
+      "document_count": 22,
+      "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+      "reranker_model": "Qwen/Qwen3-Reranker-0.6B",
+      "llm_model": "Qwen/Qwen2.5-3B-Instruct",
+      "allow_download": false,
+      "embedding_error": "Model is not in repo-local cache: /mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/LLM/Model_Cache/models--Qwen--Qwen3-Embedding-0.6B",
+      "qdrant_error": "No module named 'qdrant_client'",
+      "retrieval_fallback": "Lexical hash retrieval used only to build GraphRAG LLM context because Qwen3/Qdrant stages were unavailable.",
+      "graphrag_raw_outputs": [
+        "/mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/[Test] Inferance_Timing/outputs/timing_20260428_145747/artifacts/graphrag/graphrag_llm_run_1.txt"
+      ]
+    }
+  },
+  "rows": [
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Voxelisation and sparse tensor construction",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 32.9012,
+      "median_ms": 32.3424,
+      "min_ms": 31.9556,
+      "max_ms": 34.1332,
+      "std_ms": 0.878,
+      "p90_ms": 34.1332,
+      "notes": "Includes preprocess_sample voxelization plus MinkowskiEngine SparseTensor construction.",
+      "values_ms": [
+        32.09001699997316,
+        33.575291999909496,
+        32.3424039999054,
+        31.955563999986225,
+        33.964855000022,
+        34.13318299999446,
+        32.24699299994427
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Sparse 3D perception (forward pass)",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 33.0981,
+      "median_ms": 25.6021,
+      "min_ms": 18.5608,
+      "max_ms": 57.5116,
+      "std_ms": 12.8902,
+      "p90_ms": 57.5116,
+      "notes": "Timed model(sparse_input).F with CUDA synchronization.",
+      "values_ms": [
+        25.602117000062208,
+        24.64878000000681,
+        24.225670000078026,
+        18.56081699997958,
+        36.22024399999191,
+        44.91733099996509,
+        57.51161199998478
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Uncertainty map computation and anomaly clustering",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 8.0105,
+      "median_ms": 7.4208,
+      "min_ms": 6.6762,
+      "max_ms": 11.5439,
+      "std_ms": 1.6414,
+      "p90_ms": 11.5439,
+      "notes": "Includes softmax, entropy, label projection, voxel-center aggregation, and DBSCAN anomaly clustering.",
+      "values_ms": [
+        7.945162000055461,
+        6.676197000047068,
+        7.420771999932185,
+        6.786271000009947,
+        6.690247000051386,
+        9.010803999899508,
+        11.543942999992396
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Semantic object extraction (required pre-graph)",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 745.5886,
+      "median_ms": 747.4543,
+      "min_ms": 736.157,
+      "max_ms": 753.2878,
+      "std_ms": 5.3165,
+      "p90_ms": 753.2878,
+      "notes": "Required codebase step: class-aware DBSCAN turns point labels into scene objects before graph construction.",
+      "values_ms": [
+        741.517822999981,
+        747.4542869999823,
+        742.8839149999931,
+        748.598291999997,
+        753.2877539999845,
+        749.2214370000738,
+        736.1569670000563
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Scene graph construction",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 0.1293,
+      "median_ms": 0.1264,
+      "min_ms": 0.124,
+      "max_ms": 0.1477,
+      "std_ms": 0.0077,
+      "p90_ms": 0.1477,
+      "notes": "In-memory scene graph node/edge construction from semantic objects.",
+      "values_ms": [
+        0.12595399994097534,
+        0.147714999911841,
+        0.12399599995660537,
+        0.12455000000954897,
+        0.12815500008400704,
+        0.12640900001770206,
+        0.12863899996773398
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Temporal graph update and kinematic extraction",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 0.1045,
+      "median_ms": 0.1042,
+      "min_ms": 0.1026,
+      "max_ms": 0.1069,
+      "std_ms": 0.0014,
+      "p90_ms": 0.1069,
+      "notes": "Uses existing temporal graph matching and movement helpers on the latest saved temporal frame pair.",
+      "values_ms": [
+        0.10355899996739026,
+        0.10593000001790642,
+        0.10256600000957405,
+        0.10417800001505384,
+        0.1069129999677898,
+        0.10506199998872034,
+        0.10330299994620873
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Deterministic rule evaluation",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 0.0076,
+      "median_ms": 0.0075,
+      "min_ms": 0.0072,
+      "max_ms": 0.0081,
+      "std_ms": 0.0003,
+      "p90_ms": 0.0081,
+      "notes": "Human-to-equipment/conveyor proximity rule over graph edges.",
+      "values_ms": [
+        0.007434999929500918,
+        0.007477999929506041,
+        0.0076009999929738115,
+        0.007184999958553817,
+        0.007537999977103027,
+        0.007957999969221419,
+        0.008108999963951646
+      ]
+    },
+    {
+      "pipeline_level": "Frame-level pipeline",
+      "stage": "Total frame-level latency",
+      "status": "ok",
+      "repeats": 7,
+      "mean_ms": 819.8399,
+      "median_ms": 812.6157,
+      "min_ms": 806.1369,
+      "max_ms": 837.6996,
+      "std_ms": 13.6293,
+      "p90_ms": 837.6996,
+      "notes": "Sum of all measured frame-level stages, including the required semantic object extraction step; excludes model load and PCD file read.",
+      "values_ms": [
+        807.3920669999097,
+        812.6156789998049,
+        807.1069239998678,
+        806.1368569999559,
+        830.4057060000787,
+        837.5221839999085,
+        837.6995659998556
+      ]
+    },
+    {
+      "pipeline_level": "Temporal graph level (LLM reasoning)",
+      "stage": "LLM first-token latency (Qwen2.5-3B-Instruct)",
+      "status": "ok",
+      "repeats": 1,
+      "mean_ms": 123.5598,
+      "median_ms": 123.5598,
+      "min_ms": 123.5598,
+      "max_ms": 123.5598,
+      "std_ms": 0.0,
+      "p90_ms": 123.5598,
+      "notes": "Measured with generate(max_new_tokens=1); includes prompt prefill.",
+      "values_ms": [
+        123.55979900007696
+      ]
+    },
+    {
+      "pipeline_level": "Temporal graph level (LLM reasoning)",
+      "stage": "LLM full generation (contextual reasoning)",
+      "status": "ok",
+      "repeats": 1,
+      "mean_ms": 6601.8471,
+      "median_ms": 6601.8471,
+      "min_ms": 6601.8471,
+      "max_ms": 6601.8471,
+      "std_ms": 0.0,
+      "p90_ms": 6601.8471,
+      "notes": "Measured with max_new_tokens=320; units are milliseconds.",
+      "values_ms": [
+        6601.847127000042
+      ]
+    },
+    {
+      "pipeline_level": "Temporal graph level (LLM reasoning)",
+      "stage": "Total LLM assessment latency",
+      "status": "ok",
+      "repeats": 1,
+      "mean_ms": 6601.8471,
+      "median_ms": 6601.8471,
+      "min_ms": 6601.8471,
+      "max_ms": 6601.8471,
+      "std_ms": 0.0,
+      "p90_ms": 6601.8471,
+      "notes": "Correct total uses full generation latency because full generation includes first token.",
+      "values_ms": [
+        6601.847127000042
+      ]
+    },
+    {
+      "pipeline_level": "GraphRAG level (triggered)",
+      "stage": "Graph summary embedding (Qwen3-Embedding-0.6B)",
+      "status": "skipped",
+      "repeats": 0,
+      "mean_ms": null,
+      "median_ms": null,
+      "min_ms": null,
+      "max_ms": null,
+      "std_ms": null,
+      "p90_ms": null,
+      "notes": "Model is not in repo-local cache: /mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/LLM/Model_Cache/models--Qwen--Qwen3-Embedding-0.6B",
+      "values_ms": []
+    },
+    {
+      "pipeline_level": "GraphRAG level (triggered)",
+      "stage": "Qdrant vector search and metadata filtering",
+      "status": "skipped",
+      "repeats": 0,
+      "mean_ms": null,
+      "median_ms": null,
+      "min_ms": null,
+      "max_ms": null,
+      "std_ms": null,
+      "p90_ms": null,
+      "notes": "qdrant_client missing or embeddings unavailable. qdrant_client error: No module named 'qdrant_client'",
+      "values_ms": []
+    },
+    {
+      "pipeline_level": "GraphRAG level (triggered)",
+      "stage": "Candidate reranking (Qwen3-Reranker-0.6B)",
+      "status": "skipped",
+      "repeats": 0,
+      "mean_ms": null,
+      "median_ms": null,
+      "min_ms": null,
+      "max_ms": null,
+      "std_ms": null,
+      "p90_ms": null,
+      "notes": "Model is not in repo-local cache or no vector candidates were produced: /mnt/c/Users/Pasindu/OneDrive - UNSW/Python Work/Scene graphs_segmentation/LLM/Model_Cache/models--Qwen--Qwen3-Reranker-0.6B",
+      "values_ms": []
+    },
+    {
+      "pipeline_level": "GraphRAG level (triggered)",
+      "stage": "GraphRAG-augmented LLM reasoning",
+      "status": "ok",
+      "repeats": 1,
+      "mean_ms": 1793.6653,
+      "median_ms": 1793.6653,
+      "min_ms": 1793.6653,
+      "max_ms": 1793.6653,
+      "std_ms": 0.0,
+      "p90_ms": 1793.6653,
+      "notes": "Measured with Qwen/Qwen2.5-3B-Instruct, max_new_tokens=320. Retrieval fallback: Lexical hash retrieval used only to build GraphRAG LLM context because Qwen3/Qdrant stages were unavailable.",
+      "values_ms": [
+        1793.665342000054
+      ]
+    },
+    {
+      "pipeline_level": "GraphRAG level (triggered)",
+      "stage": "Total GraphRAG additional latency",
+      "status": "partial",
+      "repeats": 1,
+      "mean_ms": 1793.6653,
+      "median_ms": 1793.6653,
+      "min_ms": 1793.6653,
+      "max_ms": 1793.6653,
+      "std_ms": 0.0,
+      "p90_ms": 1793.6653,
+      "notes": "Sum of available measured GraphRAG stages. Skipped Qwen3/Qdrant stages are not guessed.",
+      "values_ms": [
+        1793.665342000054
+      ]
+    }
+  ]
+}

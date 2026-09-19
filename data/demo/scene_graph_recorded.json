@@ -1,0 +1,294 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "label": "wall",
+      "properties": {
+        "position": [
+          4.3115434646606445,
+          0.6396194696426392,
+          -0.06829798221588135
+        ],
+        "volume_m3": 19.39522361755371,
+        "dimensions": [
+          1.243157148361206,
+          2.660917043685913,
+          5.863236427307129
+        ],
+        "point_count": 14328,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 1,
+      "label": "equipment",
+      "properties": {
+        "position": [
+          3.741647958755493,
+          0.6155184507369995,
+          0.05291247367858887
+        ],
+        "volume_m3": 8.427602767944336,
+        "dimensions": [
+          1.0272459983825684,
+          1.4856610298156738,
+          5.5221710205078125
+        ],
+        "point_count": 11449,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 2,
+      "label": "conveyor",
+      "properties": {
+        "position": [
+          3.0609865188598633,
+          -0.6127694845199585,
+          -0.00020754337310791016
+        ],
+        "volume_m3": 0.33717694878578186,
+        "dimensions": [
+          0.18736696243286133,
+          0.38017699122428894,
+          4.733463287353516
+        ],
+        "point_count": 4493,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 3,
+      "label": "conveyor",
+      "properties": {
+        "position": [
+          2.712613105773926,
+          -1.1229569911956787,
+          0.01640796661376953
+        ],
+        "volume_m3": 1.7482595443725586,
+        "dimensions": [
+          0.48575806617736816,
+          0.9645020365715027,
+          3.7314939498901367
+        ],
+        "point_count": 7515,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 4,
+      "label": "roof",
+      "properties": {
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "volume_m3": 0.0,
+        "dimensions": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "point_count": 655,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 5,
+      "label": "roof",
+      "properties": {
+        "position": [
+          2.2044711112976074,
+          1.3345794677734375,
+          0.170059472322464
+        ],
+        "volume_m3": 5.461719512939453,
+        "dimensions": [
+          2.1708879470825195,
+          1.084259033203125,
+          2.3203790187835693
+        ],
+        "point_count": 2323,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 6,
+      "label": "other",
+      "properties": {
+        "position": [
+          4.343397617340088,
+          -0.40042349696159363,
+          0.9738685488700867
+        ],
+        "volume_m3": 1.3596086502075195,
+        "dimensions": [
+          0.7238209247589111,
+          0.46466296911239624,
+          4.042450904846191
+        ],
+        "point_count": 3755,
+        "confidence": 1.0
+      }
+    },
+    {
+      "id": 7,
+      "label": "other",
+      "properties": {
+        "position": [
+          2.6863880157470703,
+          -1.6445084810256958,
+          0.09416496753692627
+        ],
+        "volume_m3": 0.35108307003974915,
+        "dimensions": [
+          0.4619259834289551,
+          0.25856494903564453,
+          2.9394619464874268
+        ],
+        "point_count": 2620,
+        "confidence": 1.0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": 0,
+      "target": 1,
+      "relation": "near",
+      "attributes": {
+        "distance": 0.58
+      }
+    },
+    {
+      "source": 0,
+      "target": 2,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.77
+      }
+    },
+    {
+      "source": 0,
+      "target": 3,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.38
+      }
+    },
+    {
+      "source": 0,
+      "target": 5,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.23
+      }
+    },
+    {
+      "source": 0,
+      "target": 6,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.47
+      }
+    },
+    {
+      "source": 1,
+      "target": 2,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.41
+      }
+    },
+    {
+      "source": 1,
+      "target": 3,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.02
+      }
+    },
+    {
+      "source": 1,
+      "target": 5,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.7
+      }
+    },
+    {
+      "source": 1,
+      "target": 6,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.5
+      }
+    },
+    {
+      "source": 1,
+      "target": 7,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.49
+      }
+    },
+    {
+      "source": 2,
+      "target": 3,
+      "relation": "near",
+      "attributes": {
+        "distance": 0.62
+      }
+    },
+    {
+      "source": 2,
+      "target": 5,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.13
+      }
+    },
+    {
+      "source": 2,
+      "target": 6,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.62
+      }
+    },
+    {
+      "source": 2,
+      "target": 7,
+      "relation": "near",
+      "attributes": {
+        "distance": 1.1
+      }
+    },
+    {
+      "source": 3,
+      "target": 6,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.02
+      }
+    },
+    {
+      "source": 3,
+      "target": 7,
+      "relation": "near",
+      "attributes": {
+        "distance": 0.53
+      }
+    },
+    {
+      "source": 6,
+      "target": 7,
+      "relation": "near",
+      "attributes": {
+        "distance": 2.25
+      }
+    }
+  ]
+}

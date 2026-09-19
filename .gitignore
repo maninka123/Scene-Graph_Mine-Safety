@@ -6,7 +6,11 @@ __pycache__/
 .venv/
 tmp/
 outputs/
-data/
+data/*
+!data/demo/
+!data/demo/**
+web/node_modules/
+web/dist/
 qdrant_storage/
 models/cache/
 *.egg-info/
