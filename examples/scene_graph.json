@@ -1,0 +1,24 @@
+{
+  "graph_id": "example-proximity-scene",
+  "timestamp": "2026-06-02T10:37:38Z",
+  "nodes": [
+    {
+      "id": "person-01", "label": "personnel", "centroid": [1.6, 0.2, 0.9],
+      "bbox_dimensions": [0.5, 0.5, 1.8], "orientation": [1.0, 0.0, 0.0],
+      "volume_m3": 0.45, "voxel_count": 480, "confidence": 0.94, "entropy": 0.08,
+      "is_anomaly": false, "active": true, "velocity": [0.0, 0.0, 0.0], "movement_state": "stationary"
+    },
+    {
+      "id": "vehicle-01", "label": "mining_vehicle", "centroid": [0.0, 0.0, 0.7],
+      "bbox_dimensions": [3.0, 1.8, 1.8], "orientation": [1.0, 0.0, 0.0],
+      "volume_m3": 9.72, "voxel_count": 9200, "confidence": 0.97, "entropy": 0.04,
+      "is_anomaly": false, "active": true, "velocity": [0.5, 0.0, 0.0], "movement_state": "slow"
+    }
+  ],
+  "edges": [
+    {"source": "person-01", "target": "vehicle-01", "distance_m": 1.625, "relation": "near", "safety_flags": []},
+    {"source": "vehicle-01", "target": "person-01", "distance_m": 1.625, "relation": "near", "safety_flags": []}
+  ],
+  "mean_intensity": 76.0,
+  "metadata": {"source": "hand-authored example"}
+}

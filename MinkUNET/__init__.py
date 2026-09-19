@@ -1,2 +1,0 @@
-"""MinkUNET segmentation package."""
-

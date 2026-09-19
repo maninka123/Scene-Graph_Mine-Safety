@@ -1,0 +1,75 @@
+seed: 42
+
+perception:
+  voxel_size_m: 0.01
+  input_features: 6
+  backbone_width: 32
+  feature_dim: 96
+  projection_dim: 128
+  classes:
+    - shearer_cutter
+    - mining_face
+    - hydraulic_support
+    - roof_canopy
+    - conveyor
+    - tunnel_wall
+    - mining_vehicle
+    - personnel
+    - floor
+  contrastive:
+    temperature: 0.1
+    epochs: 100
+    batch_size: 16
+    learning_rate: 0.001
+    rotation_degrees: 30
+    scale: [0.9, 1.1]
+    jitter_std_m: 0.01
+    point_dropout_max: 0.10
+  finetune:
+    epochs: 100
+    batch_size: 8
+    backbone_learning_rate: 0.0001
+    head_learning_rate: 0.0005
+    early_stopping: true
+
+anomaly:
+  entropy_threshold: 0.35
+  closing_iterations: 1
+  minimum_voxels: 20
+  dbscan_epsilon_m: 0.10
+  merge_boundary_m: 0.15
+  merge_centroid_m: 0.20
+  merge_orientation_degrees: 15
+
+graph:
+  edge_distance_m: 8.0
+  temporal_window_seconds: 10.0
+  association_label_penalty: 1000.0
+  association_max_displacement_m: 1.0
+  stationary_displacement_m: 0.2
+  slow_displacement_m: 0.5
+
+rules:
+  personnel_labels: [personnel, human, worker]
+  equipment_labels: [shearer_cutter, mining_vehicle, equipment, shearer]
+  safe_clearance_m: 1.5
+  ttc_threshold_seconds: 3.0
+  blind_spot_distance_m: 3.0
+  blind_spot_angle_degrees: 135.0
+  congestion_radius_m: 4.0
+  congestion_density_per_m2: 0.05
+  visibility_window_seconds: 3.0
+  visibility_intensity_threshold: 25.0
+
+reasoning:
+  contextual_model: Qwen/Qwen2.5-3B-Instruct
+  embedding_model: Qwen/Qwen3-Embedding-0.6B
+  reranker_model: Qwen/Qwen3-Reranker-0.6B
+  temperature: 0.15
+  top_p: 0.9
+  max_new_tokens: 500
+  max_conditions: 3
+  regeneration_attempts: 1
+  retrieval_top_k: 5
+  similarity_trigger: 0.70
+  anomaly_persistence_seconds: 3.0

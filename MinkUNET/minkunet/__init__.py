@@ -1,2 +1,0 @@
-"""Core MinkUNET modules."""
-

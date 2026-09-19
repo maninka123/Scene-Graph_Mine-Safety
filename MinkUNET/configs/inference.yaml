@@ -1,7 +1,0 @@
-base_config: "MinkUNET/configs/base.yaml"
-
-inference:
-  checkpoint: "MinkUNET/checkpoints/semantic_best.pt"
-  input_path: "Datasets/Data_all"
-  output_dir: "Results/MinkUNET_inference"
-  temporal_window: 3

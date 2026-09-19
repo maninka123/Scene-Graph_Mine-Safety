@@ -1,253 +1,167 @@
-# 3D Mine Scene Understanding: Scene Graphs with Segmentation
+# From 3D Perception to Safety Reasoning
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
-[![Open3D](https://img.shields.io/badge/Open3D-Point_Cloud-green)](http://www.open3d.org/)
-[![PyTorch](https://img.shields.io/badge/PyTorch-Deep_Learning-red?logo=pytorch&logoColor=white)](https://pytorch.org/)
-[![MinkowskiEngine](https://img.shields.io/badge/MinkowskiEngine-Sparse_3D-orange)](https://github.com/NVIDIA/MinkowskiEngine)
-[![Transformers](https://img.shields.io/badge/HuggingFace-Transformers-yellow?logo=huggingface&logoColor=black)](https://huggingface.co/docs/transformers)
-[![Scene%20Graph](https://img.shields.io/badge/Scene%20Graph-Spatial%20Reasoning-6f42c1)](#a-scene-graph-pipeline-main-logic)
-[![Segmentation](https://img.shields.io/badge/Segmentation-MinkUNET-0ea5e9)](#b-minkunet-segmentation-pipeline)
+> A self-contained, paper-aligned reference implementation for graph-based underground mine monitoring.
 
-This repository follows a two-part logic for underground mining point clouds:
+[![Paper](https://img.shields.io/badge/arXiv-2606.03460-b31b1b.svg)](https://arxiv.org/abs/2606.03460)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab.svg)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-pytest-0a84ff.svg)](#validation)
 
-1. Segmentation stage: produce object/semantic partitions per frame.
-2. Scene graph stage: use those segmented objects to build spatial and temporal scene graphs, then run LLM reasoning.
+![Pipeline architecture](assets/figures/architecture.svg)
 
-Scene graphs are the main reasoning layer. Segmentation is the upstream stage that provides object regions/labels used by graph construction.
+This repository reconstructs the complete software pipeline described in **“From 3D Perception to
+Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring”**. It contains
+the architecture and orchestration code, paper parameters, local-model boundaries, tests, an example
+scene graph, copied legacy model artefacts, and a redesigned single-graph interactive lab. It deliberately
+does **not** include generated experiment results or ablation studies.
 
-## 📁 Project Layout
+## Important scope and safety notice
+
+This is research software, not a certified safety system. The interactive app is a **work-in-progress,
+single-scene-graph educational sandbox**. It is not connected to ROS, Gazebo, a mine simulator, live
+sensors, alarms, machinery, or operational controls. Its outputs must not be used for safety decisions.
+
+## What is implemented
+
+| Paper stage | Implementation | Paper alignment |
+| --- | --- | --- |
+| Sparse 3D perception | `perception/network.py` | 6-D xyzrgb input; 32/64/128/256 encoder; symmetric decoder; 96-D shared representation; 128-D contrastive and 9-class semantic heads |
+| Two-stage learning | `scripts/train_contrastive.py`, `scripts/train_semantic.py` | NT-Xent τ=0.1, listed augmentations, Adam/cosine schedule, differential fine-tuning rates, early stopping |
+| Uncertainty/anomaly | `perception/anomaly.py` | predictive entropy >0.35; minimum 20 voxels; DBSCAN ε=0.10 m; paper merge gates |
+| Scene graph | `graph/scene.py` | object/anomaly attributes and directed proximity relations within 8 m |
+| Temporal graph | `graph/temporal.py` | Hungarian association, λ=1000 class penalty, 1 m gate, rolling 10 s history, velocities and motion state |
+| Deterministic reasoning | `rules.py` | proximity, TTC≤3 s, rear blind spot, congestion, rolling low visibility |
+| Contextual reasoning | `reasoning/llm.py` | Qwen2.5-3B-Instruct, constrained JSON, ID grounding, one regeneration attempt |
+| Longitudinal memory | `reasoning/graphrag.py` | compact memory units, three selective triggers, Qwen3 embedding/reranking, top-5 local Qdrant retrieval |
+| Single-graph lab | `app/scene_lab.py` | editable scenario builder, 3D graph, rule evidence, JSON export, explicit non-simulator status |
+
+## Repository layout
 
 ```text
-Scene-Graph-Mine-Safety/
-├── [Main] run_pipeline.py                 # 🚀 Single-frame pipeline (segment -> graph -> LLM -> visualize)
-├── [Main] run_temporal_pipeline.py        # 🚀 Temporal pipeline (tracking + temporal graph + LLM)
-│
-├── func_segment_minkunet.py               # Single-frame semantic segmentation (MinkUNET + instance grouping)
-├── func_segment_minkunet_temporal.py      # Multi-frame semantic segmentation across sequence
-├── func_segment_clustering.py             # Optional geometric fallback segmentation (DBSCAN)
-├── func_segment_clustering_temporal.py    # Optional temporal fallback segmentation
-├── func_build_graph.py                    # Build single-frame scene graph (nodes + near-edges)
-├── func_build_temporal_graph.py           # Track objects over time + temporal graph construction
-├── func_query_local_llm.py                # Local LLM inference for single-frame graph prompt
-├── func_query_llm_temporal.py             # Local LLM inference for temporal graph prompt
-├── func_visualize_scene_graph.py          # Visualize single-frame graph and labels
-├── func_visualize_temporal.py             # Visualize trajectories and temporal context
-│
-├── MinkUNET/
-│   ├── configs/                           # Training/inference configs
-│   ├── scripts/                           # CLI scripts (train, validate, infer, ablations)
-│   ├── minkunet/                          # Core model/data/engine code
-│   ├── checkpoints/                       # Saved model checkpoints
-│   ├── logs/                              # Metrics, plots, diagnostics
-│   └── data/                              # Manifests and metadata
-│
-├── AppUI/                                 # Separate web app (Streamlit dashboard, isolated outputs)
-│   ├── app.py
-│   ├── app_core/
-│   ├── app_results/                       # App-only run outputs
-│   └── requirements.txt
-│
-├── LLM/
-│   └── Model_Cache/                       # 🤗 Downloaded local model cache
-├── Datasets/                              # Input point cloud datasets
-├── Results/                               # Output artifacts from runs
-└── requirements.txt                       # Python dependencies
+mine_safety_reasoning/
+├── app/                    # Apple-inspired single-scene-graph Streamlit lab
+├── assets/figures/         # Architecture and copied legacy reference images
+├── checkpoints/            # Contrastive backbone + clearly isolated legacy semantic model
+├── configs/paper.yaml      # Traceable parameters from the paper
+├── examples/               # Valid scene graph and training-manifest examples
+├── scripts/                # Training, point-cloud inference, and app launchers
+├── src/mine_safety/        # Perception, graphs, rules, reasoning, memory, orchestration
+└── tests/                  # Fast unit tests independent of CUDA and local LLM weights
 ```
 
-## A) Scene Graph Pipeline (Main Logic)
-
-### Two modes
-
-- Single-frame graph reasoning:
-  - `python "[Main] run_pipeline.py"`
-- Temporal graph reasoning (multi-frame tracking):
-  - `python "[Main] run_temporal_pipeline.py"`
-
-Both runners now default to MinkUNET segmentation and keep clustering as a fallback backend.
-
-### Stage flow (single-frame)
-
-1. `func_segment_minkunet.py`
-   - runs semantic inference (`wall/equipment/human/conveyor/roof/other`)
-   - groups semantic points into instance objects (class-aware DBSCAN)
-   - writes `scene_objects_segmented.json`, `semantic_segmentation.pcd`, `semantic_prediction.npz`
-   - fallback option: `func_segment_clustering.py` when backend is set to `clustering`
-2. `func_build_graph.py`
-   - builds nodes/edges (`near` relationships using centroid distance threshold)
-   - writes `scene_graph.json`
-   - creates an LLM prompt: `llm_prompt.txt`
-3. `func_query_local_llm.py`
-   - runs local HF model (default `Qwen/Qwen2.5-7B-Instruct`)
-   - writes structured response: `LLM/llm_response_real.json`
-4. `func_visualize_scene_graph.py`
-   - visualizes objects, boxes, relations, and labels
-
-### Stage flow (temporal)
-
-1. `func_segment_minkunet_temporal.py`
-   - processes all `PC_*.pcd` in dataset folder
-   - writes per-frame object JSONs and semantic outputs in `frames/`
-   - fallback option: `func_segment_clustering_temporal.py` when backend is set to `clustering`
-2. `func_build_temporal_graph.py`
-   - matches objects across frames with Hungarian assignment
-   - computes displacement, velocity class, direction
-   - writes `temporal_scene_graph.json`
-   - creates temporal LLM prompt: `llm_temporal_prompt.txt`
-3. `func_query_llm_temporal.py`
-   - runs local HF model for temporal explanation/safety
-   - writes:
-     - `LLM/llm_temporal_response.json`
-     - `LLM/llm_raw_output.txt`
-     - `LLM/llm_analysis_report.txt`
-4. `func_visualize_temporal.py`
-   - visualizes trajectories and tracked movement context
-
-### How LLM is used
-
-- Inference backend: HuggingFace Transformers (`AutoTokenizer`, `AutoModelForCausalLM`).
-- Default model in both main scripts: `Qwen/Qwen2.5-7B-Instruct`.
-- Model files are cached locally under:
-  - `LLM/Model_Cache/`
-- Prompts are generated from scene-graph artifacts (not raw point clouds directly).
-- LLM is instructed to return strict JSON (for downstream parsing).
-
-### Key configurable parameters
-
-- Single-frame config (`[Main] run_pipeline.py`):
-  - `SEGMENTATION_BACKEND` (`minkunet` by default)
-  - `MINKUNET_CONFIG`, `MINKUNET_CHECKPOINT`, `MINKUNET_TEMPORAL_WINDOW`
-  - optional fallback params: `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
-  - `GRAPH_DIST_THRESHOLD`
-  - `LLM_MODEL`
-- Temporal config (`[Main] run_temporal_pipeline.py`):
-  - `SEGMENTATION_BACKEND` (`minkunet` by default)
-  - `MINKUNET_CONFIG`, `MINKUNET_CHECKPOINT`, `MINKUNET_TEMPORAL_WINDOW`
-  - optional fallback params: `VOXEL_SIZE`, `RANSAC_DISTANCE`, `CLUSTER_EPS`, `CLUSTER_MIN_POINTS`
-  - `MAX_TRACK_DISTANCE`, `MOVEMENT_THRESHOLD`
-  - `GRAPH_DIST_THRESHOLD`, `LLM_MODEL`
-
-### Output structure (scene-graph side)
-
-- Single-frame run:
-  - `Results/<pcd_name>/scene_objects_segmented.json`
-  - `Results/<pcd_name>/semantic_segmentation.pcd`
-  - `Results/<pcd_name>/semantic_prediction.npz`
-  - `Results/<pcd_name>/scene_graph.json`
-  - `Results/<pcd_name>/llm_prompt.txt`
-  - `Results/<pcd_name>/LLM/llm_response_real.json`
-- Temporal run:
-  - `Results/<dataset_name>/frames/frame_XX_objects.json`
-  - `Results/<dataset_name>/frame_index.json`
-  - `Results/<dataset_name>/temporal_scene_graph.json`
-  - `Results/<dataset_name>/llm_temporal_prompt.txt`
-  - `Results/<dataset_name>/LLM/llm_temporal_response.json`
-
-## B) MinkUNET Segmentation Pipeline
-
-Detailed docs are in `MinkUNET/README.md`.  
-This is the practical run order:
-
-### 1) Build manifests (one-time, re-run if dataset split changes)
+## Quick start: interactive single-graph lab
 
 ```bash
-python MinkUNET/scripts/build_manifests.py --config MinkUNET/configs/base.yaml
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -e ".[app,dev]"
+streamlit run app/scene_lab.py
 ```
 
-### 2) Convert manual annotations from CloudCompare (re-run when labels change)
+The lab opens with a safe-passage scene. Choose a preset or edit/add rows to create proximity,
+convergence, rear blind-spot, congestion, visibility, and anomaly scenarios. Spatial relationships and
+deterministic evidence update from that one graph. Contextual/GraphRAG panels describe the local runtime
+path but remain opt-in so the browser demo never silently downloads or executes an LLM.
+
+## Run the graph pipeline
 
 ```bash
-python MinkUNET/scripts/import_cloudcompare_labels.py --config MinkUNET/configs/base.yaml
-python MinkUNET/scripts/build_manifests.py --config MinkUNET/configs/base.yaml --labeled-val-ratio 0.2
+pip install -e .
+mine-safety examples/scene_graph.json --output outputs/assessment.json
 ```
 
-### 3) Contrastive pretraining
+Add `--llm` only after installing the local reasoning dependencies:
 
 ```bash
-python MinkUNET/scripts/train_contrastive.py --config MinkUNET/configs/pretrain.yaml --skip-val --num-workers 0
+pip install -e ".[llm]"
+mine-safety examples/scene_graph.json --llm
 ```
 
-### 4) Segmentation fine-tuning
+The configured reasoning model is `Qwen/Qwen2.5-3B-Instruct`, matching the paper. Inference stays on the
+machine; provide model weights through the normal Hugging Face cache or a pre-populated offline cache.
+
+## Perception training and inference
+
+Training data use a small, inspectable format. Each `.npz` contains:
+
+- `points`: float `[N,3]` xyz metres
+- `colors`: float `[N,3]` RGB in `[0,1]`
+- `labels`: integer `[N]` using the nine-class order in `configs/paper.yaml` (supervised data only)
+
+Each JSONL manifest row contains `{"path":"relative/or/absolute/scene.npz"}`.
 
 ```bash
-python MinkUNET/scripts/train_segmentation.py --config MinkUNET/configs/finetune.yaml
+# Install PyTorch and a matching MinkowskiEngine build first.
+pip install -e ".[pointcloud]"
+python scripts/train_contrastive.py data/unlabelled.jsonl
+python scripts/train_semantic.py data/labelled.jsonl
+python scripts/infer_point_cloud.py data/example.pcd \
+  --checkpoint checkpoints/semantic_nine_class.pt
 ```
 
-### 5) Validation
+The included `contrastive_backbone.pt` was copied from the prior workspace. The prior semantic checkpoint
+has only six output classes, so it is retained under `checkpoints/legacy_six_class/` for provenance and is
+never presented as a paper-compatible nine-class model. See [checkpoint notes](checkpoints/README.md).
+
+## Graph and reasoning contract
+
+The graph is the audit boundary. Dense voxel predictions are reduced to nodes containing IDs, labels,
+centroids, axis-aligned dimensions, PCA orientation, volume, voxel count, confidence, and entropy. Directed
+edges contain metric distance and deterministic flags. The temporal layer adds stable track IDs, velocity,
+and movement state. The LLM receives this bounded representation—not raw point clouds—and its JSON is
+rejected if it references an absent object or memory.
+
+Deterministic alerts remain independent of LLM availability and latency. Retrieval is selective: anomaly
+persistence over 3 seconds, a `developing`/`unresolved` contextual status, or archive similarity above 0.70.
+Retrieved scores and previous model interpretations are advisory and cannot establish a hazard by themselves.
+
+## Validation
+
+Fast tests cover directed graph construction, class-consistent Hungarian tracking, bounding-box clearance,
+congestion, schema parsing, and hallucinated-ID rejection:
 
 ```bash
-python MinkUNET/scripts/validate_segmentation.py --config MinkUNET/configs/finetune.yaml
+pip install -e ".[dev]"
+pytest -q
 ```
 
-### 6) Inference (per-frame output folders)
+Heavy CUDA, MinkowskiEngine, local-Qwen, and Qdrant integration tests are intentionally environment-specific.
+No experimental metrics are claimed by this code package without the paper dataset and evaluation protocol.
 
-```bash
-python MinkUNET/scripts/infer_segmentation.py --config MinkUNET/configs/inference.yaml --checkpoint MinkUNET/checkpoints/semantic_best.pt --output-dir Results/MainRun_Inference
+## Reference images retained from the original workspace
+
+These are historical implementation snapshots, included because they were present in the source workspace.
+They are not regenerated results and are not evidence that this reconstructed pipeline reproduces paper metrics.
+
+<details>
+<summary>Legacy GPU utilisation snapshot</summary>
+
+![Legacy GPU utilisation](assets/figures/gpu_usage.jpeg)
+
+</details>
+
+<details>
+<summary>Legacy scene-graph and LLM console snapshot</summary>
+
+![Legacy scene graph and LLM output](assets/figures/llm_insights.jpeg)
+
+</details>
+
+## Cite
+
+Paper: [arXiv:2606.03460](https://arxiv.org/abs/2606.03460) ·
+[DOI: 10.48550/arXiv.2606.03460](https://doi.org/10.48550/arXiv.2606.03460)
+
+```bibtex
+@misc{ranasinghe2026from3d,
+  title         = {From 3D Perception to Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring},
+  author        = {Ranasinghe, Pasindu and Raval, Simit and Patra, Dibyayan and Banerjee, Bikram and Canbulat, Ismet},
+  year          = {2026},
+  eprint        = {2606.03460},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CV},
+  doi           = {10.48550/arXiv.2606.03460}
+}
 ```
 
-Each frame is saved as:
-
-- `Results/MainRun_Inference/<frame_name>/prediction.npz`
-- `Results/MainRun_Inference/<frame_name>/prediction.pcd`
-- `Results/MainRun_Inference/<frame_name>/summary.json`
-
-## Main Segmentation Classes
-
-- `wall`
-- `equipment`
-- `human`
-- `conveyor`
-- `roof`
-- `other`
-
-## Training Logs and Plots
-
-Main training runs auto-save timestamped metrics/plots:
-
-- Contrastive:
-  - `MinkUNET/logs/contrastive/<timestamp>/...`
-- Segmentation:
-  - `MinkUNET/logs/segmentation/<timestamp>/...`
-
-Contrastive diagnostics include:
-
-- Similarity histograms (`positive` vs `negative` cosine similarity)
-- Layer sparsity/activation summaries per backbone stage
-
-## Paper-Scale Experiments (Separate Pipeline)
-
-If needed, run full ablations and comparisons in isolated folders:
-
-```bash
-python MinkUNET/scripts/run_paper_study.py --config MinkUNET/configs/paper_study.yaml
-```
-
-Visualize all paper-study results (auto-picks latest run in `Results/Paper_Study`):
-
-```bash
-python MinkUNET/scripts/visualize_paper_results.py --study-root Results/Paper_Study
-```
-
-Outputs go under:
-
-- `Results/Paper_Study/<run_name_timestamp>/`
-
-This does not interfere with your normal main-run workflow.
-
-## C) Interactive App (Separate, Non-Interfering)
-
-For an interactive UI with:
-- single-frame or temporal selection
-- timestamp-range and frame-gap control
-- live segmentation preview during run
-- graph + LLM stages
-- saved plots/metrics dashboards
-
-use the standalone app:
-
-```bash
-pip install -r AppUI/requirements.txt
-streamlit run AppUI/app.py
-```
-
-App outputs are saved only in:
-- `AppUI/app_results/`
+Machine-readable citation metadata is in [`CITATION.cff`](CITATION.cff).

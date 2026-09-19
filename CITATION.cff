@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this implementation, please cite the paper below."
+title: "Mine Safety Reasoning: paper-aligned reference implementation"
+type: software
+version: 1.0.0
+authors:
+  - family-names: Ranasinghe
+    given-names: Pasindu
+repository-code: "https://github.com/maninka123/Scene-Graph_Mine-Safety"
+preferred-citation:
+  type: article
+  title: "From 3D Perception to Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring"
+  authors:
+    - family-names: Ranasinghe
+      given-names: Pasindu
+    - family-names: Raval
+      given-names: Simit
+    - family-names: Patra
+      given-names: Dibyayan
+    - family-names: Banerjee
+      given-names: Bikram
+    - family-names: Canbulat
+      given-names: Ismet
+  year: 2026
+  doi: "10.48550/arXiv.2606.03460"
+  url: "https://arxiv.org/abs/2606.03460"
