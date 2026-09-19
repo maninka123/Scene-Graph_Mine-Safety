@@ -1,4 +1,4 @@
--e ".[app]"
+-e ".[app,llm]"
 
 # Build the React interface with: cd web && npm install && npm run build
 # Install optional stacks only where required:

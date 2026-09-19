@@ -42,3 +42,13 @@ def test_live_scene_graph_and_rule_analysis():
     payload = response.json()
     assert any(alert["rule"] == "proximity_violation" for alert in payload["alerts"])
     assert payload["live_timings"]["total_postprocess_ms"] >= 0
+
+
+def test_qwen_status_contract_does_not_load_model():
+    response = client.get("/api/model/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["model_id"] == "Qwen/Qwen2.5-3B-Instruct"
+    assert payload["prompt_profile"] == "Appendix A contextual safety reasoning"
+    assert "cuda_available" in payload
+    assert "loaded" in payload

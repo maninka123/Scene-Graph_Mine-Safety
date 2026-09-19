@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Callable
 from typing import Any
@@ -101,35 +102,58 @@ class LocalQwenReasoner:
     def __init__(self, config: dict, generator: Callable[[list[dict[str, str]]], str] | None = None) -> None:
         self.config = config
         self.generator = generator
-        self._pipeline = None
+        self._model = None
+        self._tokenizer = None
+
+    def load(self) -> None:
+        """Load the local model once without generating output."""
+        if self.generator is not None or self._model is not None:
+            return
+        # Some simulator environments include legacy generated protobuf modules.
+        # The pure-Python implementation keeps those modules compatible while
+        # Transformers imports the Qwen architecture.
+        os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        model_source = self.config["contextual_model"]
+        torch.manual_seed(42)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(42)
+        tokenizer = AutoTokenizer.from_pretrained(model_source, local_files_only=True)
+        dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+        model = AutoModelForCausalLM.from_pretrained(
+            model_source,
+            torch_dtype=dtype,
+            device_map="auto" if torch.cuda.is_available() else None,
+            local_files_only=True,
+        )
+        self._model = model
+        self._tokenizer = tokenizer
 
     def _generate(self, messages: list[dict[str, str]]) -> str:
         if self.generator is not None:
             return self.generator(messages)
-        if self._pipeline is None:
-            import torch
-            from transformers import pipeline
+        if self._model is None or self._tokenizer is None:
+            self.load()
+        import torch
 
-            torch.manual_seed(42)
-            if torch.cuda.is_available():
-                torch.cuda.manual_seed_all(42)
-            self._pipeline = pipeline(
-                "text-generation",
-                model=self.config["contextual_model"],
-                device_map="auto",
-                model_kwargs={"torch_dtype": "auto"},
-            )
-        output = self._pipeline(
-            messages,
-            max_new_tokens=self.config["max_new_tokens"],
-            temperature=self.config["temperature"],
-            top_p=self.config["top_p"],
-            do_sample=True,
+        prompt = self._tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
         )
-        generated = output[0]["generated_text"]
-        if isinstance(generated, list):
-            return generated[-1]["content"]
-        return str(generated)
+        inputs = self._tokenizer(prompt, return_tensors="pt")
+        device = next(self._model.parameters()).device
+        inputs = {key: value.to(device) for key, value in inputs.items()}
+        with torch.inference_mode():
+            output_ids = self._model.generate(
+                **inputs,
+                max_new_tokens=self.config["max_new_tokens"],
+                temperature=self.config["temperature"],
+                top_p=self.config["top_p"],
+                do_sample=True,
+            )
+        generated_ids = output_ids[0, inputs["input_ids"].shape[1] :]
+        return self._tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
 
     def reason(
         self,

@@ -9,11 +9,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.demo_service import ROOT, load_demo, run_interactive
+from app.qwen_service import model_status, reason_scene
 
 
 class AnalysisRequest(BaseModel):
     nodes: list[dict[str, Any]]
     edge_distance_m: float = Field(default=2.5, ge=0.25, le=8.0)
+
+
+class ReasoningRequest(BaseModel):
+    graph: dict[str, Any]
+    alerts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 app = FastAPI(
@@ -49,6 +55,21 @@ def analyse(request: AnalysisRequest) -> dict[str, Any]:
         return run_interactive(request.nodes, request.edge_distance_m)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Could not analyse scene: {exc}") from exc
+
+
+@app.get("/api/model/status")
+def qwen_status() -> dict[str, Any]:
+    return model_status()
+
+
+@app.post("/api/reason")
+def reason(request: ReasoningRequest) -> dict[str, Any]:
+    try:
+        return reason_scene(request.graph, request.alerts)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Qwen reasoning failed: {exc}") from exc
 
 
 DIST = ROOT / "web" / "dist"

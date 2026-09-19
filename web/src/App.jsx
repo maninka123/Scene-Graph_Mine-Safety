@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, AlertTriangle, ChevronRight, CircleGauge, Clock3, GitBranch, HardHat, Info, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles } from 'lucide-react'
+import { Activity, AlertTriangle, BrainCircuit, CheckCircle2, ChevronRight, CircleGauge, Clock3, Cpu, GitBranch, HardHat, Info, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles, Timer } from 'lucide-react'
 import PointCloud from './components/PointCloud.jsx'
 import SceneGraph from './components/SceneGraph.jsx'
 
@@ -50,6 +50,11 @@ function Segmented({ value, onChange, options, label }) {
   return <div className="segmented" aria-label={label}>{options.map((option) => <button key={option.value} className={value === option.value ? 'selected' : ''} onClick={() => onChange(option.value)}>{option.label}</button>)}</div>
 }
 
+function formatTime(milliseconds) {
+  if (milliseconds >= 1000) return `${(milliseconds / 1000).toFixed(2)} s`
+  return `${milliseconds.toFixed(1)} ms`
+}
+
 function App() {
   const [payload, setPayload] = useState(null)
   const [error, setError] = useState('')
@@ -65,12 +70,21 @@ function App() {
   const [runningStage, setRunningStage] = useState(null)
   const [activeStage, setActiveStage] = useState('minkunet')
   const [liveTimings, setLiveTimings] = useState(null)
+  const [qwenStatus, setQwenStatus] = useState(null)
+  const [qwenResult, setQwenResult] = useState(null)
+  const [qwenLoading, setQwenLoading] = useState(false)
+  const [qwenError, setQwenError] = useState('')
 
   useEffect(() => {
     loadDemo().then(({ data, api }) => {
       setPayload(data); setApiConnected(api); setNodes(data.nodes); setGraph(data.graph); setAlerts(data.alerts); setSelectedId(data.nodes[1]?.id)
     }).catch((reason) => setError(reason.message))
   }, [])
+
+  useEffect(() => {
+    if (!apiConnected) return
+    fetch(`${API}/api/model/status`).then((response) => response.json()).then(setQwenStatus).catch(() => setQwenStatus(null))
+  }, [apiConnected])
 
   const runAnalysis = useCallback(async (nextNodes = nodes, threshold = edgeDistance) => {
     if (!payload) return
@@ -110,7 +124,24 @@ function App() {
   }
 
   const reset = () => {
-    setNodes(payload.nodes); setGraph(payload.graph); setAlerts(payload.alerts); setSelectedId(payload.nodes[1]?.id); setEdgeDistance(2.5); setLiveTimings(null)
+    setNodes(payload.nodes); setGraph(payload.graph); setAlerts(payload.alerts); setSelectedId(payload.nodes[1]?.id); setEdgeDistance(2.5); setLiveTimings(null); setQwenResult(null); setQwenError('')
+  }
+
+  const runQwen = async () => {
+    setQwenLoading(true); setQwenError(''); setQwenResult(null); setActiveStage('qwen')
+    try {
+      const response = await fetch(`${API}/api/reason`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ graph, alerts }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.detail || 'Qwen reasoning failed')
+      setQwenResult(body)
+      setQwenStatus(body.model)
+    } catch (reason) {
+      setQwenError(reason.message)
+    } finally {
+      setQwenLoading(false)
+    }
   }
 
   const selected = nodes.find((node) => node.id === selectedId)
@@ -175,7 +206,19 @@ function App() {
         {tab === 'reasoning' && <section className="reasoning-grid">
           <article className={`card safety-summary ${alerts.length ? 'warning' : 'safe'}`}><div className="status-icon">{alerts.length ? <AlertTriangle /> : <ShieldCheck />}</div><div><span className="overline">DETERMINISTIC LAYER</span><h2>{alerts.length ? `${alerts.length} rule finding${alerts.length === 1 ? '' : 's'}` : 'No rule findings in recorded frame'}</h2><p>{alerts.length ? 'Review the grounded evidence below. Synthetic scenario objects are explicitly labelled.' : 'The recorded scan contains no personnel detection, so person–equipment rules do not fire.'}</p></div></article>
           <div className="findings">{alerts.length ? alerts.map((alert, index) => <article className="card finding" key={`${alert.rule}-${index}`}><div className="finding-head"><span className={`severity ${alert.severity}`}>{alert.severity}</span><b>{alert.rule.replaceAll('_', ' ')}</b></div><p>{alert.message}</p><div className="evidence">{Object.entries(alert.evidence).map(([key, value]) => <span key={key}><small>{key.replaceAll('_', ' ')}</small><b>{typeof value === 'number' ? value.toFixed(3) : value}</b></span>)}</div><div className="object-links">{alert.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); setTab('graph') }}>{id}</button>)}</div></article>) : <article className="card empty-state"><ShieldCheck /><h3>Safe under current deterministic rules</h3><p>Add a test worker to see object-grounded proximity evidence.</p><button className="primary small" onClick={addWorker}><Plus size={15} />Add test worker</button></article>}</div>
-          <article className="card qwen-card"><div><Sparkles size={20} /><span><b>Qwen contextual reasoning</b><small>Optional local model · not run in this browser session</small></span></div><span className="source-tag optional">optional</span><p>The production path receives the bounded scene graph—not raw point clouds—and must return schema-validated, object-grounded JSON. Recorded reference latency is shown under Performance.</p></article>
+          <article className="card qwen-workspace">
+            <div className="qwen-header"><div className="qwen-title"><span className="qwen-icon"><BrainCircuit size={22} /></span><span><span className="overline">CONTEXTUAL MODEL</span><h2>Qwen 2.5 · 3B Instruct</h2><small>{qwenStatus?.available ? `${qwenStatus.loaded ? 'Loaded' : 'Ready locally'} · ${qwenStatus.gpu || 'CPU'}` : 'Local model not detected'}</small></span></div><button className="primary" onClick={runQwen} disabled={qwenLoading || !apiConnected || !qwenStatus?.available}>{qwenLoading ? <span className="button-spinner" /> : <Sparkles size={16} />}{qwenLoading ? (qwenStatus?.loaded ? 'Reasoning…' : 'Loading model…') : 'Run Qwen assessment'}</button></div>
+            <div className="prompt-contract"><span><CheckCircle2 size={15} />Appendix A prompt</span><span><CheckCircle2 size={15} />Strict JSON schema</span><span><CheckCircle2 size={15} />Exact object-ID grounding</span><span><CheckCircle2 size={15} />Deterministic flags preserved</span></div>
+            {qwenLoading && <div className="qwen-progress"><span className="thinking-orb" /><div><b>{qwenStatus?.loaded ? 'Evaluating the current graph' : 'Loading local weights onto the GPU'}</b><p>The model receives {graph.nodes.length} nodes, {graph.edges.length} directed relations, and {alerts.length} established deterministic finding{alerts.length === 1 ? '' : 's'}.</p></div></div>}
+            {qwenError && <div className="qwen-error"><AlertTriangle size={17} /><span><b>Qwen could not complete the assessment</b>{qwenError}</span></div>}
+            {!qwenLoading && !qwenResult && !qwenError && <div className="qwen-empty"><Sparkles /><div><b>Ready for grounded contextual reasoning</b><p>Qwen assesses only additional contextual hazards. It does not repeat or override deterministic findings.</p></div></div>}
+            {qwenResult && <div className="qwen-result">
+              <div className={`assessment-banner ${qwenResult.assessment.hazard_detected ? 'hazard' : 'clear'}`}><span>{qwenResult.assessment.hazard_detected ? <AlertTriangle /> : <ShieldCheck />}</span><div><small>VALIDATED QWEN OUTPUT</small><h3>{qwenResult.assessment.hazard_detected ? `${qwenResult.assessment.risk_conditions.length} additional contextual condition${qwenResult.assessment.risk_conditions.length === 1 ? '' : 's'}` : 'No additional contextual hazard'}</h3><p>{qwenResult.assessment.explanation}</p></div></div>
+              {qwenResult.assessment.risk_conditions.length > 0 && <div className="qwen-conditions">{qwenResult.assessment.risk_conditions.map((condition, index) => <div className="qwen-condition" key={`${condition.condition}-${index}`}><div><span className={`severity ${condition.severity}`}>{condition.severity}</span><b>{condition.condition}</b><em>{condition.temporal_pattern.replaceAll('_', ' ')}</em></div><p>{condition.evidence}</p><div className="object-links">{condition.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); setTab('graph') }}>{id}</button>)}</div></div>)}</div>}
+              <div className="qwen-meta"><span><Cpu size={15} /><small>Model</small><b>Qwen2.5-3B</b></span><span><Timer size={15} /><small>Generation</small><b>{formatTime(qwenResult.timing.generation_ms)}</b></span><span><Clock3 size={15} /><small>Model load</small><b>{qwenResult.model.loaded_for_request ? formatTime(qwenResult.timing.model_load_ms) : 'Already loaded'}</b></span><span><CheckCircle2 size={15} /><small>Validation</small><b>Schema + IDs passed</b></span></div>
+              <details className="json-output"><summary>View validated JSON output</summary><pre>{JSON.stringify(qwenResult.assessment, null, 2)}</pre></details>
+            </div>}
+          </article>
         </section>}
 
         {tab === 'performance' && <section className="performance-grid">

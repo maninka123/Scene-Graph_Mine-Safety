@@ -55,7 +55,7 @@ mine_safety_reasoning/
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # Linux/macOS: source .venv/bin/activate
-pip install -e ".[app,dev]"
+pip install -e ".[app,llm,dev]"
 cd web
 npm install
 npm run build
@@ -68,11 +68,20 @@ Open `http://127.0.0.1:8000`. The studio uses the included 48,000-point
 `PC_20260122_153641662.pcd` simulator frame and its recorded MinkUNet outputs. Orbit the 3D scan, switch
 between RGB and semantic colour, inspect detections, rebuild the graph at different relation radii, and add
 a clearly labelled synthetic worker to exercise a deterministic proximity rule. The Python API rebuilds
-relations and rules live. GPU perception and Qwen timings come from the included RTX 4080 benchmark and are
-labelled **recorded**, never presented as current execution.
+relations and rules live. In the Reasoning view, **Run Qwen assessment** executes the local
+`Qwen2.5-3B-Instruct` model against the current graph using the paper's Appendix A prompt. The returned
+assessment is shown only after strict schema and object-ID grounding validation. Model load and generation
+times are labelled separately; perception timings remain the included recorded RTX 4080 benchmark.
 
 For frontend development, run `python -m uvicorn app.api:app --reload --port 8000` and, in a second terminal,
-`cd web && npm run dev`. Contextual Qwen/GraphRAG remains opt-in and is not silently downloaded or executed.
+`cd web && npm run dev`. Model weights are never downloaded silently. The app looks for the model in
+`models/Qwen2.5-3B-Instruct`, the normal Hugging Face cache, and the parent workspace's `LLM/Model_Cache`.
+To use another local snapshot, set `MINEGRAPH_QWEN_MODEL` to its directory before starting the API:
+
+```powershell
+$env:MINEGRAPH_QWEN_MODEL = "D:\models\Qwen2.5-3B-Instruct"
+python -m uvicorn app.api:app --host 127.0.0.1 --port 8000
+```
 
 ## Run the graph pipeline
 
