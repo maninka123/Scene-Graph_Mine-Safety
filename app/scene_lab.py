@@ -180,7 +180,7 @@ st.write("")
 with st.sidebar:
     st.subheader("Scenario controls")
     preset = st.selectbox("Starting point", ["Safe passage", "Proximity breach", "Blind spot", "Congested zone", "Anomaly nearby"])
-    if st.button("Load preset", use_container_width=True):
+    if st.button("Load preset", width="stretch"):
         st.session_state.objects = scenario(preset)
         st.rerun()
     mean_intensity = st.slider("Scene intensity", 0, 255, 90, help="Paper threshold: rolling mean below 25/255")
@@ -189,7 +189,7 @@ with st.sidebar:
 
 objects = st.data_editor(
     st.session_state.objects,
-    num_rows="dynamic", use_container_width=True, hide_index=True, key="scene_editor",
+    num_rows="dynamic", width="stretch", hide_index=True, key="scene_editor",
     column_config={
         "label": st.column_config.SelectboxColumn("Class", options=CLASSES, required=True),
         "active": st.column_config.CheckboxColumn("Active"),
@@ -218,18 +218,18 @@ builder_tab, graph_tab, reasoning_tab, llm_tab, pipeline_tab = st.tabs(
 with builder_tab:
     left, right = st.columns([1.6, 1], gap="large")
     with left:
-        st.plotly_chart(graph_figure(graph), use_container_width=True, config={"displaylogo": False})
+        st.plotly_chart(graph_figure(graph), width="stretch", config={"displaylogo": False})
     with right:
         st.subheader("Compose a scenario")
         st.write("Add a row for each entity, choose its class, then set position, physical size, velocity, and heading. The graph updates immediately.")
         st.info("Tip: three personnel inside a 4 m equipment zone trigger the paper's density rule; place personnel behind moving equipment to test the blind-spot rule.")
         payload = graph.model_dump_json(indent=2)
-        st.download_button("Download scene graph JSON", payload, "scene_graph.json", "application/json", use_container_width=True)
+        st.download_button("Download scene graph JSON", payload, "scene_graph.json", "application/json", width="stretch")
 
 with graph_tab:
     st.subheader("Object-to-object evidence")
     edge_rows = [{"source": edge.source, "relation": edge.relation, "target": edge.target, "distance_m": round(edge.distance_m, 3)} for edge in graph.edges]
-    st.dataframe(edge_rows, use_container_width=True, hide_index=True)
+    st.dataframe(edge_rows, width="stretch", hide_index=True)
     with st.expander("Validated graph JSON"):
         st.json(graph.model_dump(mode="json"))
 
@@ -253,5 +253,5 @@ with llm_tab:
     st.caption("Models are downloaded only when you explicitly enable the local reasoning path. No cloud endpoint is used.")
 
 with pipeline_tab:
-    st.image(str(PROJECT_ROOT / "assets" / "figures" / "architecture.svg"), use_container_width=True)
+    st.image(str(PROJECT_ROOT / "assets" / "figures" / "architecture.svg"), width="stretch")
     st.markdown("**Current sandbox path:** manual objects → scene graph → deterministic rules.  **Repository path:** colourised point cloud → MinkUNet → entropy anomalies → scene/temporal graph → rules + local LLM → selective GraphRAG.")
