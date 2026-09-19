@@ -52,3 +52,22 @@ def test_qwen_status_contract_does_not_load_model():
     assert payload["prompt_profile"] == "Appendix A contextual safety reasoning"
     assert "cuda_available" in payload
     assert "loaded" in payload
+
+
+def test_perception_upload_status_contract():
+    response = client.get("/api/perception/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["checkpoint"] == "legacy_six_class/semantic_best.pt"
+    assert payload["classes"] == ["wall", "equipment", "human", "conveyor", "roof", "other"]
+    assert payload["paper_checkpoint"] is False
+    assert ".pcd" in payload["accepted_formats"]
+
+
+def test_point_cloud_upload_rejects_unsupported_files():
+    response = client.post(
+        "/api/point-clouds",
+        files={"file": ("not-a-cloud.txt", b"hello", "text/plain")},
+    )
+    assert response.status_code == 422
+    assert ".pcd" in response.json()["detail"]

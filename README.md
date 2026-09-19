@@ -73,6 +73,24 @@ relations and rules live. In the Reasoning view, **Run Qwen assessment** execute
 assessment is shown only after strict schema and object-ID grounding validation. Model load and generation
 times are labelled separately; perception timings remain the included recorded RTX 4080 benchmark.
 
+### Process an uploaded point cloud
+
+Select **Upload point cloud** in the studio and choose a `.pcd`, `.ply`, or `.npz` file (up to 250 MB).
+The service stores it under the ignored `.runtime/` directory, runs sparse voxelisation and the local CUDA
+MinkUNet, extracts class-consistent instances, constructs the scene graph, and evaluates deterministic
+safety rules. The browser shows real stage progress, the semantic/RGB point cloud, detection boxes, class
+counts, graph, findings, and an execution-time receipt for that upload.
+
+On this Windows workspace, segmentation runs through the existing WSL 2 environment at `../.venv_wsl`,
+which contains CUDA-enabled MinkowskiEngine. On Linux, the API uses the active Python environment when
+MinkowskiEngine is installed. Uploaded files and results remain local.
+
+The available trained semantic checkpoint is the retained **six-class** model
+(`wall`, `equipment`, `human`, `conveyor`, `roof`, `other`). The UI identifies it as such and does not claim
+that it is the paper's nine-class checkpoint. Replace it with a genuinely trained nine-class checkpoint
+before using the paper taxonomy in uploaded-file inference. NPZ uploads must contain `points: [N,3]` and
+may contain `colors: [N,3]`; PCD and PLY are read with Open3D.
+
 For frontend development, run `python -m uvicorn app.api:app --reload --port 8000` and, in a second terminal,
 `cd web && npm run dev`. Model weights are never downloaded silently. The app looks for the model in
 `models/Qwen2.5-3B-Instruct`, the normal Hugging Face cache, and the parent workspace's `LLM/Model_Cache`.

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.demo_service import ROOT, load_demo, run_interactive
 from app.qwen_service import model_status, reason_scene
+from app.upload_service import create_job, perception_status, public_job
 
 
 class AnalysisRequest(BaseModel):
@@ -55,6 +56,30 @@ def analyse(request: AnalysisRequest) -> dict[str, Any]:
         return run_interactive(request.nodes, request.edge_distance_m)
     except Exception as exc:
         raise HTTPException(status_code=422, detail=f"Could not analyse scene: {exc}") from exc
+
+
+@app.get("/api/perception/status")
+def segmentation_status() -> dict[str, Any]:
+    return perception_status()
+
+
+@app.post("/api/point-clouds", status_code=202)
+async def upload_point_cloud(file: Annotated[UploadFile, File()]) -> dict[str, Any]:
+    try:
+        content = await file.read()
+        return create_job(file.filename or "point-cloud.pcd", content)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/point-clouds/{job_id}")
+def point_cloud_job(job_id: str) -> dict[str, Any]:
+    try:
+        return public_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Upload job not found") from exc
 
 
 @app.get("/api/model/status")

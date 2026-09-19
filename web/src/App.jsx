@@ -1,5 +1,5 @@
-import { createElement, useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, AlertTriangle, BrainCircuit, CheckCircle2, ChevronRight, CircleGauge, Clock3, Cpu, GitBranch, HardHat, Info, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles, Timer } from 'lucide-react'
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Activity, AlertTriangle, BrainCircuit, Check, CheckCircle2, ChevronRight, CircleGauge, Clock3, Cpu, FileUp, GitBranch, HardHat, Info, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles, Timer, UploadCloud } from 'lucide-react'
 import PointCloud from './components/PointCloud.jsx'
 import SceneGraph from './components/SceneGraph.jsx'
 
@@ -55,8 +55,33 @@ function formatTime(milliseconds) {
   return `${milliseconds.toFixed(1)} ms`
 }
 
+const uploadStages = [
+  ['upload', 'Upload'], ['reading', 'Read points'], ['voxelise', 'Voxelise'],
+  ['model', 'Load model'], ['minkunet', 'Segment'], ['instances', 'Detect objects'],
+  ['graph', 'Build graph'], ['rules', 'Safety rules'],
+]
+
+function UploadProgress({ job }) {
+  if (!job) return null
+  const currentIndex = uploadStages.findIndex(([id]) => id === job.stage)
+  return <section className={`upload-progress-card ${job.status}`} aria-live="polite">
+    <div className="upload-progress-head">
+      <span className="upload-progress-icon">{job.status === 'complete' ? <Check size={20} /> : job.status === 'failed' ? <AlertTriangle size={20} /> : <UploadCloud size={20} />}</span>
+      <div><span className="overline">{job.status === 'complete' ? 'PIPELINE COMPLETE' : job.status === 'failed' ? 'PROCESSING ERROR' : 'LIVE SEGMENTATION'}</span><h2>{job.filename}</h2><p>{job.error || job.message}</p></div>
+      <strong>{Math.round((job.progress || 0) * 100)}%</strong>
+    </div>
+    <div className="upload-progress-track"><i style={{ transform: `scaleX(${job.progress || 0})` }} /></div>
+    <div className="upload-stage-list">{uploadStages.map(([id, label], index) => {
+      const done = job.status === 'complete' || index < currentIndex
+      const active = id === job.stage
+      return <span className={`${done ? 'done' : ''} ${active ? 'active' : ''}`} key={id}>{done ? <Check size={12} /> : <i />}{label}</span>
+    })}</div>
+  </section>
+}
+
 function App() {
   const [payload, setPayload] = useState(null)
+  const [referencePayload, setReferencePayload] = useState(null)
   const [error, setError] = useState('')
   const [apiConnected, setApiConnected] = useState(false)
   const [tab, setTab] = useState('perception')
@@ -74,21 +99,63 @@ function App() {
   const [qwenResult, setQwenResult] = useState(null)
   const [qwenLoading, setQwenLoading] = useState(false)
   const [qwenError, setQwenError] = useState('')
+  const [perceptionStatus, setPerceptionStatus] = useState(null)
+  const [uploadJob, setUploadJob] = useState(null)
+  const fileInput = useRef(null)
 
   useEffect(() => {
     loadDemo().then(({ data, api }) => {
-      setPayload(data); setApiConnected(api); setNodes(data.nodes); setGraph(data.graph); setAlerts(data.alerts); setSelectedId(data.nodes[1]?.id)
+      setPayload(data); setReferencePayload(data); setApiConnected(api); setNodes(data.nodes); setGraph(data.graph); setAlerts(data.alerts); setSelectedId(data.nodes[1]?.id)
     }).catch((reason) => setError(reason.message))
   }, [])
 
   useEffect(() => {
     if (!apiConnected) return
     fetch(`${API}/api/model/status`).then((response) => response.json()).then(setQwenStatus).catch(() => setQwenStatus(null))
+    fetch(`${API}/api/perception/status`).then((response) => response.json()).then(setPerceptionStatus).catch(() => setPerceptionStatus(null))
   }, [apiConnected])
+
+  const applyScene = useCallback((scene) => {
+    setPayload((current) => ({ ...scene, timings: current.timings, timing_environment: current.timing_environment }))
+    setNodes(scene.nodes); setGraph(scene.graph); setAlerts(scene.alerts); setSelectedId(scene.nodes[0]?.id || null)
+    setLiveTimings(scene.upload_timings ? { total_postprocess_ms: scene.upload_timings.total_ms } : null)
+    setQwenResult(null); setQwenError(''); setColourMode('semantic'); setTab('perception')
+  }, [])
+
+  const uploadPointCloud = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setUploadJob({ filename: file.name, status: 'uploading', stage: 'upload', progress: 0.01, message: 'Uploading point cloud to the local Python service' })
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const response = await fetch(`${API}/api/point-clouds`, { method: 'POST', body: form })
+      const created = await response.json()
+      if (!response.ok) throw new Error(created.detail || 'Upload could not be started')
+      setUploadJob(created)
+      let finished = false
+      while (!finished) {
+        await new Promise((resolve) => setTimeout(resolve, 450))
+        const statusResponse = await fetch(`${API}/api/point-clouds/${created.id}`)
+        const job = await statusResponse.json()
+        if (!statusResponse.ok) throw new Error(job.detail || 'Could not read processing status')
+        setUploadJob(job)
+        const stage = ['model', 'minkunet'].includes(job.stage) ? 'minkunet' : job.stage === 'reading' ? 'pcd' : job.stage
+        setRunningStage(job.status === 'running' ? stage : null)
+        if (!['validation', 'upload'].includes(stage)) setActiveStage(stage)
+        if (job.status === 'complete') { applyScene(job.result); finished = true }
+        if (job.status === 'failed') throw new Error(job.error || 'Segmentation pipeline failed')
+      }
+    } catch (reason) {
+      setUploadJob((current) => ({ ...current, status: 'failed', stage: 'error', error: reason.message }))
+      setRunningStage(null)
+    }
+  }
 
   const runAnalysis = useCallback(async (nextNodes = nodes, threshold = edgeDistance) => {
     if (!payload) return
-    const animation = ['pcd', 'voxelise', 'minkunet', 'instances', 'graph', 'rules']
+    const animation = payload.demo.uploaded ? ['graph', 'rules'] : ['pcd', 'voxelise', 'minkunet', 'instances', 'graph', 'rules']
     for (const stage of animation) {
       setRunningStage(stage); setActiveStage(stage)
       await new Promise((resolve) => setTimeout(resolve, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 20 : 180))
@@ -124,7 +191,8 @@ function App() {
   }
 
   const reset = () => {
-    setNodes(payload.nodes); setGraph(payload.graph); setAlerts(payload.alerts); setSelectedId(payload.nodes[1]?.id); setEdgeDistance(2.5); setLiveTimings(null); setQwenResult(null); setQwenError('')
+    if (!referencePayload) return
+    setPayload(referencePayload); setNodes(referencePayload.nodes); setGraph(referencePayload.graph); setAlerts(referencePayload.alerts); setSelectedId(referencePayload.nodes[1]?.id); setEdgeDistance(2.5); setLiveTimings(null); setQwenResult(null); setQwenError(''); setUploadJob(null)
   }
 
   const runQwen = async () => {
@@ -166,12 +234,22 @@ function App() {
             <p>Explore a recorded simulator frame through the paper’s perception, scene-graph, and deterministic reasoning pipeline.</p>
           </div>
           <div className="hero-actions">
-            <button className="primary" onClick={() => runAnalysis().catch((reason) => setError(reason.message))} disabled={Boolean(runningStage)}><Play size={16} fill="currentColor" />{runningStage ? 'Running pipeline…' : 'Run pipeline'}</button>
-            <button className="secondary" onClick={addWorker}><Plus size={16} />Add test worker</button>
+            <input ref={fileInput} className="file-input" type="file" accept=".pcd,.ply,.npz" onChange={uploadPointCloud} />
+            <button className="primary upload-button" onClick={() => fileInput.current?.click()} disabled={Boolean(runningStage) || !apiConnected || !perceptionStatus?.available}><FileUp size={16} />{runningStage ? 'Processing point cloud…' : 'Upload point cloud'}</button>
+            <button className="secondary" onClick={() => runAnalysis().catch((reason) => setError(reason.message))} disabled={Boolean(runningStage)}><Play size={16} fill="currentColor" />{payload.demo.uploaded ? 'Re-run graph & rules' : 'Replay demo pipeline'}</button>
           </div>
         </section>
 
-        <aside className="notice"><Info size={17} /><span><b>Demonstration only.</b> Recorded MinkUNet outputs are shown for this included scan; graph construction and rule checks run live when the Python API is connected. This is not connected to a simulator, sensors, alarms, or operational controls.</span></aside>
+        <aside className="notice"><Info size={17} /><span><b>Research demonstrator.</b> {payload.demo.uploaded ? 'This point cloud was processed locally by the trained six-class MinkUNet checkpoint; its scene graph and rules are live outputs.' : 'The included scan uses its recorded MinkUNet output. Upload a PCD, PLY, or NPZ file to run real local GPU segmentation.'} This is not connected to a simulator, sensors, alarms, or operational controls.</span></aside>
+
+        <section className="upload-dock">
+          <div><span className="upload-mark"><UploadCloud size={20} /></span><span><b>{payload.demo.uploaded ? payload.demo.filename : 'Process your own point cloud'}</b><small>{payload.demo.uploaded ? `${payload.demo.point_count.toLocaleString()} points · ${payload.demo.model_provenance}` : 'PCD, PLY, or NPZ · up to 250 MB · processed locally'}</small></span></div>
+          <div className="runtime-note"><i className={perceptionStatus?.available ? 'ready' : ''} />{perceptionStatus?.available ? 'CUDA MinkUNet ready' : 'Segmentation runtime unavailable'}</div>
+          <button className="secondary small" onClick={() => fileInput.current?.click()} disabled={Boolean(runningStage) || !perceptionStatus?.available}><FileUp size={15} />Choose file</button>
+          {payload.demo.uploaded && <button className="quiet-button" onClick={reset}><RotateCcw size={14} />Use included scan</button>}
+        </section>
+
+        <UploadProgress job={uploadJob} />
 
         <Pipeline stages={payload.pipeline} activeStage={activeStage} runningStage={runningStage} setActiveStage={setActiveStage} />
 
@@ -195,6 +273,7 @@ function App() {
               {selected ? <><div className="object-id">{selected.id}</div><dl><div><dt>Confidence</dt><dd>{(selected.confidence * 100).toFixed(0)}%</dd></div><div><dt>Points</dt><dd>{selected.voxel_count.toLocaleString()}</dd></div><div><dt>Volume</dt><dd>{selected.volume_m3.toFixed(2)} m³</dd></div><div><dt>Centroid</dt><dd>{selected.centroid.map((v) => v.toFixed(2)).join(', ')}</dd></div></dl></> : <p>Click a box in the 3D view.</p>}
             </article>
             <article className="card"><span className="overline">CLASS DISTRIBUTION</span><div className="distribution">{Object.entries(payload.demo.class_counts).filter(([, count]) => count > 0).map(([name, count]) => <div key={name}><div><span><i style={{ background: payload.class_colours[name] }} />{name}</span><b>{count.toLocaleString()}</b></div><span className="bar"><i style={{ width: `${count / payload.demo.point_count * 100}%`, background: payload.class_colours[name] }} /></span></div>)}</div></article>
+            {payload.upload_timings && <article className="card inference-receipt"><div className="card-head"><div><span className="overline">THIS UPLOAD</span><h2>Execution receipt</h2></div><CheckCircle2 size={21} /></div><dl><div><dt>GPU segmentation</dt><dd>{formatTime(payload.upload_timings.segmentation_ms)}</dd></div><div><dt>Instance extraction</dt><dd>{formatTime(payload.upload_timings.instances_ms)}</dd></div><div><dt>Graph + rules</dt><dd>{formatTime(payload.upload_timings.graph_ms + payload.upload_timings.rules_ms)}</dd></div><div><dt>Total pipeline</dt><dd>{formatTime(payload.upload_timings.total_ms)}</dd></div></dl><p>Measured for this file on this machine.</p></article>}
           </aside>
         </section>}
 
@@ -226,7 +305,7 @@ function App() {
           <aside className="side-stack"><article className="card"><span className="overline">BENCHMARK SYSTEM</span><h2>{payload.timing_environment.gpu}</h2><dl className="system-list"><div><dt>CUDA</dt><dd>{payload.timing_environment.cuda_available ? 'Available' : 'Unavailable'}</dd></div><div><dt>Frame repeats</dt><dd>{payload.timing_environment.repeats}</dd></div><div><dt>Context model</dt><dd>{payload.timing_environment.model}</dd></div><div><dt>Measured</dt><dd>{payload.timing_environment.generated_at.slice(0, 10)}</dd></div></dl></article><article className="card live-card"><span className="overline">THIS SESSION</span><h2>Live post-processing</h2>{liveTimings ? <><div className="live-number">{liveTimings.total_postprocess_ms.toFixed(3)} <small>ms</small></div><p>Python graph construction and deterministic rule evaluation on this machine.</p></> : <><Clock3 /><p>Run the pipeline to measure the lightweight graph and rule stages on this machine.</p></>}</article></aside>
         </section>}
 
-        <footer><span>MineGraph Studio · Paper-aligned research interface</span><span>One included simulator frame · No live control connection</span></footer>
+        <footer><span>MineGraph Studio · Paper-aligned research interface</span><span>{payload.demo.uploaded ? 'User point cloud · locally processed' : 'Included simulator frame'} · No live control connection</span></footer>
       </main>
     </div>
   )

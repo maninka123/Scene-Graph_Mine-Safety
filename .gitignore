@@ -6,11 +6,12 @@ __pycache__/
 .venv/
 tmp/
 outputs/
+.runtime/
 data/*
 !data/demo/
 !data/demo/**
-web/node_modules/
-web/dist/
 qdrant_storage/
 models/cache/
 *.egg-info/
+web/node_modules/
+web/dist/
