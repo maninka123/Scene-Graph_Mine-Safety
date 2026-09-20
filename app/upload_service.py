@@ -21,7 +21,7 @@ from mine_safety.perception.instances import extract_instances
 from mine_safety.rules import SafetyRuleEngine
 
 RUNTIME_DIR = ROOT / ".runtime" / "uploads"
-CHECKPOINT = ROOT / "checkpoints" / "legacy_six_class" / "semantic_best.pt"
+CHECKPOINT = ROOT / "checkpoints" / "demo_adapter" / "semantic_best.pt"
 WORKER = ROOT / "scripts" / "segment_upload_wsl.py"
 ALLOWED_SUFFIXES = {".pcd", ".ply", ".npz"}
 MAX_UPLOAD_BYTES = 250 * 1024 * 1024
@@ -49,9 +49,7 @@ def perception_status() -> dict[str, Any]:
     return {
         "available": bool(runtime_ready and CHECKPOINT.is_file() and WORKER.is_file()),
         "runtime": runtime,
-        "checkpoint": "legacy_six_class/semantic_best.pt",
-        "classes": ["wall", "equipment", "human", "conveyor", "roof", "other"],
-        "paper_checkpoint": False,
+        "checkpoint": "demo_adapter/semantic_best.pt",
         "accepted_formats": sorted(ALLOWED_SUFFIXES),
         "max_upload_mb": MAX_UPLOAD_BYTES // (1024 * 1024),
     }
@@ -189,7 +187,8 @@ def _build_result(
     voxel_count = int(data["voxel_count"][0])
 
     valid = labels >= 0
-    voxel_keys = np.floor(points / 0.05).astype(np.int32)
+    config = load_config(ROOT / "configs" / "paper.yaml")
+    voxel_keys = np.floor(points / config["perception"]["voxel_size_m"]).astype(np.int32)
     _, representatives = np.unique(voxel_keys, axis=0, return_index=True)
     representatives = representatives[valid[representatives]]
     _update(
@@ -209,7 +208,6 @@ def _build_result(
     )
     timings["instances_ms"] = (time.perf_counter() - instance_started) * 1000
 
-    config = load_config(ROOT / "configs" / "paper.yaml")
     _update(
         job_id,
         stage="graph",
@@ -220,12 +218,12 @@ def _build_result(
     graph = build_scene_graph(
         nodes,
         graph_id=f"upload-{Path(filename).stem}",
-        edge_distance_m=2.5,
+        edge_distance_m=config["graph"]["edge_distance_m"],
         mean_intensity=float(colors.mean() * 255.0),
         metadata={
             "source": filename,
             "uploaded": True,
-            "segmentation_checkpoint": "legacy_six_class/semantic_best.pt",
+            "segmentation_checkpoint": "demo_adapter/semantic_best.pt",
         },
     )
     timings["graph_ms"] = (time.perf_counter() - graph_started) * 1000
@@ -266,7 +264,7 @@ def _build_result(
             "classes": class_names,
             "class_counts": counts,
             "uploaded": True,
-            "model_provenance": "Trained six-class MinkUNet checkpoint",
+            "model_provenance": "Local trained MinkUNet checkpoint",
         },
         "point_cloud": {
             "positions": np.round(points[indices], 5).tolist(),
@@ -282,7 +280,7 @@ def _build_result(
         "pipeline": [
             {"id": "pcd", "label": "Point cloud", "detail": f"{len(points):,} XYZRGB points", "kind": "complete"},
             {"id": "voxelise", "label": "Voxelise", "detail": f"{voxel_count:,} sparse voxels", "kind": "complete"},
-            {"id": "minkunet", "label": "MinkUNet", "detail": "Real six-class GPU inference", "kind": "complete"},
+            {"id": "minkunet", "label": "MinkUNet", "detail": "Local GPU inference", "kind": "complete"},
             {"id": "instances", "label": "Detections", "detail": f"{len(nodes)} clustered instances", "kind": "complete"},
             {"id": "graph", "label": "Scene graph", "detail": f"{len(graph.edges)} directed relations", "kind": "live"},
             {"id": "rules", "label": "Safety rules", "detail": f"{len(alerts)} grounded findings", "kind": "live"},

@@ -133,7 +133,7 @@ def load_demo(max_points: int = 12000) -> dict[str, Any]:
 
     raw_nodes = json.loads((DEMO_DIR / "scene_objects_segmented.json").read_text(encoding="utf-8"))
     nodes = [_normalise_node(node) for node in raw_nodes]
-    analysis = analyse_nodes(nodes, edge_distance_m=2.5)
+    analysis = analyse_nodes(nodes, edge_distance_m=8.0)
     timings, timing_environment = _reference_timings()
     class_counts = {
         name: int(np.count_nonzero(labels == index)) for index, name in enumerate(class_names)

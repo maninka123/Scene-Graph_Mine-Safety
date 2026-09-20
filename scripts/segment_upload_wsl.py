@@ -12,7 +12,7 @@ CLASS_NAMES = ["wall", "equipment", "human", "conveyor", "roof", "other"]
 ROI_MIN = np.array([-10.0, -10.0, -3.0], dtype=np.float32)
 ROI_MAX = np.array([10.0, 10.0, 3.0], dtype=np.float32)
 ROI_SCALE = np.array([10.0, 10.0, 3.0], dtype=np.float32)
-VOXEL_SIZE_M = 0.05
+VOXEL_SIZE_M = 0.01
 MAX_POINTS = 200_000
 
 
@@ -110,11 +110,11 @@ def main() -> None:
     np.random.seed(42)
     progress("reading", 0.12, "Reading and validating XYZ/RGB points")
     points, colors = read_cloud(args.input)
-    progress("voxelise", 0.25, f"Voxelising {len(points):,} points at 5 cm")
+    progress("voxelise", 0.25, f"Voxelising {len(points):,} points at 1 cm")
     processed = preprocess(points, colors)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    progress("model", 0.38, f"Loading six-class MinkUNet on {device.type.upper()}")
+    progress("model", 0.38, f"Loading local MinkUNet on {device.type.upper()}")
     network = load_network_module()
     SemanticMinkUNet = network.SemanticMinkUNet
     model = SemanticMinkUNet(

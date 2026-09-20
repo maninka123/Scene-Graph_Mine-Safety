@@ -8,48 +8,42 @@
 
 ![Graphical abstract of the perception-to-reasoning pipeline](assets/figures/Graphical%20Abstract_final.png)
 
-This repository reconstructs the complete software pipeline described in **“From 3D Perception to
-Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring”**. It contains
-the architecture and orchestration code, paper parameters, local-model boundaries, tests, an example
-scene graph, copied legacy model artefacts, and a redesigned React + FastAPI interactive studio. It deliberately
-does **not** include generated experiment results or ablation studies.
+This repository reconstructs the software pipeline described in **“From 3D Perception to Safety
+Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring.”** It provides the
+architecture, training and inference entry points, scene and temporal graph construction, deterministic
+safety rules, grounded local-LLM reasoning, GraphRAG memory, tests, and an interactive visualiser. It does
+not include regenerated experiment results or ablation studies.
 
-## Important scope and safety notice
+## Scope and safety
 
-This is research software, not a certified safety system. The interactive app is a **work-in-progress,
-single-scene-graph educational sandbox**. It is not connected to ROS, Gazebo, a mine simulator, live
-sensors, alarms, machinery, or operational controls. Its outputs must not be used for safety decisions.
+This is research software, not a certified or operational safety system. The paper pipeline is implemented
+in Python, including temporal tracking. The browser app is deliberately narrower: it visualises one frame
+and one scene graph so users can inspect the processing stages. The app does **not** create a temporal
+graph and is not connected to a simulator, live sensors, alarms, machinery, or operational controls.
 
-## What is implemented
+## Paper pipeline
 
-| Paper stage | Implementation | Paper alignment |
-| --- | --- | --- |
-| Sparse 3D perception | `perception/network.py` | 6-D xyzrgb input; 32/64/128/256 encoder; symmetric decoder; 96-D shared representation; 128-D contrastive and 9-class semantic heads |
-| Two-stage learning | `scripts/train_contrastive.py`, `scripts/train_semantic.py` | NT-Xent τ=0.1, listed augmentations, Adam/cosine schedule, differential fine-tuning rates, early stopping |
-| Uncertainty/anomaly | `perception/anomaly.py` | predictive entropy >0.35; minimum 20 voxels; DBSCAN ε=0.10 m; paper merge gates |
-| Scene graph | `graph/scene.py` | object/anomaly attributes and directed proximity relations within 8 m |
-| Temporal graph | `graph/temporal.py` | Hungarian association, λ=1000 class penalty, 1 m gate, rolling 10 s history, velocities and motion state |
-| Deterministic reasoning | `rules.py` | proximity, TTC≤3 s, rear blind spot, congestion, rolling low visibility |
-| Contextual reasoning | `reasoning/prompts.py`, `reasoning/llm.py` | Complete Appendix A prompt; exact contextual JSON schema; word limits, ID grounding, and one regeneration attempt |
-| Longitudinal memory | `reasoning/graphrag.py` | Appendix B schema; linked-memory filtering; selective triggers; Qwen3 embedding/reranking; top-5 local Qdrant retrieval |
-| Interactive studio | `web/`, `app/api.py` | Three.js point cloud, semantic detections, live scene-graph controls, grounded rule evidence, and recorded execution timings |
+| Stage | Implementation |
+| --- | --- |
+| Sparse 3D perception | XYZRGB sparse input, MinkUNet encoder–decoder, shared 96-D representation, contrastive and semantic heads |
+| Uncertainty | Predictive entropy, morphological closing, DBSCAN proposals, and paper merge criteria |
+| Scene graph | Object/anomaly nodes and directed proximity relations within 8 m |
+| Temporal graph | Hungarian association, 10 s rolling history, velocity, and movement state |
+| Safety rules | Proximity, TTC, blind spot, congestion, and low visibility |
+| Context reasoning | Appendix A prompt contract with schema and object-ID validation |
+| Longitudinal memory | Selective GraphRAG retrieval with local Qdrant, embedding, and reranking adapters |
 
-## Repository layout
+All traceable constants are collected in [`configs/paper.yaml`](configs/paper.yaml). The executable modules
+live under [`src/mine_safety`](src/mine_safety), and the training/inference entry points are in
+[`scripts`](scripts).
 
-```text
-mine_safety_reasoning/
-├── app/                    # FastAPI service and demo-data adapter
-├── assets/figures/         # Architecture and copied legacy reference images
-├── checkpoints/            # Contrastive backbone + clearly isolated legacy semantic model
-├── configs/paper.yaml      # Traceable parameters from the paper
-├── examples/               # Valid scene graph and training-manifest examples
-├── scripts/                # Training, point-cloud inference, and app launchers
-├── src/mine_safety/        # Perception, graphs, rules, reasoning, memory, orchestration
-├── tests/                  # Fast unit/API tests independent of CUDA and local LLM weights
-└── web/                    # React, Vite, and Three.js research interface
-```
+## MineGraph Studio
 
-## Quick start: MineGraph Studio
+MineGraph Studio is a React, Three.js, and FastAPI demonstrator for inspecting the pipeline with a single
+scene graph. It includes an interactive point cloud, detection boxes, graph controls, deterministic-rule
+evidence, execution timing, optional local Qwen reasoning, and local point-cloud upload support.
+
+![MineGraph Studio single-scene pipeline demonstrator](assets/figures/minegraph-studio.png)
 
 ```bash
 python -m venv .venv
@@ -64,72 +58,27 @@ python scripts/build_demo_bundle.py
 python -m uvicorn app.api:app --host 127.0.0.1 --port 8000
 ```
 
-Open `http://127.0.0.1:8000`. The studio uses the included 48,000-point
-`PC_20260122_153641662.pcd` simulator frame and its recorded MinkUNet outputs. Orbit the 3D scan, switch
-between RGB and semantic colour, inspect detections, rebuild the graph at different relation radii, and add
-a clearly labelled synthetic worker to exercise a deterministic proximity rule. The Python API rebuilds
-relations and rules live. In the Reasoning view, **Run Qwen assessment** executes the local
-`Qwen2.5-3B-Instruct` model against the current graph using the paper's Appendix A prompt. The returned
-assessment is shown only after strict schema and object-ID grounding validation. Model load and generation
-times are labelled separately; perception timings remain the included recorded RTX 4080 benchmark.
+Open `http://127.0.0.1:8000`. Uploaded `.pcd`, `.ply`, and `.npz` files remain local. GPU segmentation
+requires CUDA, MinkowskiEngine, and a compatible local checkpoint. Qwen weights are never downloaded
+silently; set `MINEGRAPH_QWEN_MODEL` when using a custom local model path.
 
-### Process an uploaded point cloud
-
-Select **Upload point cloud** in the studio and choose a `.pcd`, `.ply`, or `.npz` file (up to 250 MB).
-The service stores it under the ignored `.runtime/` directory, runs sparse voxelisation and the local CUDA
-MinkUNet, extracts class-consistent instances, constructs the scene graph, and evaluates deterministic
-safety rules. The browser shows real stage progress, the semantic/RGB point cloud, detection boxes, class
-counts, graph, findings, and an execution-time receipt for that upload.
-
-On this Windows workspace, segmentation runs through the existing WSL 2 environment at `../.venv_wsl`,
-which contains CUDA-enabled MinkowskiEngine. On Linux, the API uses the active Python environment when
-MinkowskiEngine is installed. Uploaded files and results remain local.
-
-The available trained semantic checkpoint is the retained **six-class** model
-(`wall`, `equipment`, `human`, `conveyor`, `roof`, `other`). The UI identifies it as such and does not claim
-that it is the paper's nine-class checkpoint. Replace it with a genuinely trained nine-class checkpoint
-before using the paper taxonomy in uploaded-file inference. NPZ uploads must contain `points: [N,3]` and
-may contain `colors: [N,3]`; PCD and PLY are read with Open3D.
-
-For frontend development, run `python -m uvicorn app.api:app --reload --port 8000` and, in a second terminal,
-`cd web && npm run dev`. Model weights are never downloaded silently. The app looks for the model in
-`models/Qwen2.5-3B-Instruct`, the normal Hugging Face cache, and the parent workspace's `LLM/Model_Cache`.
-To use another local snapshot, set `MINEGRAPH_QWEN_MODEL` to its directory before starting the API:
-
-```powershell
-$env:MINEGRAPH_QWEN_MODEL = "D:\models\Qwen2.5-3B-Instruct"
-python -m uvicorn app.api:app --host 127.0.0.1 --port 8000
-```
-
-## Run the graph pipeline
+## Run the Python pipeline
 
 ```bash
 pip install -e .
 mine-safety examples/scene_graph.json --output outputs/assessment.json
 ```
 
-Add `--llm` only after installing the local reasoning dependencies:
+Enable local contextual reasoning after installing the LLM dependencies:
 
 ```bash
 pip install -e ".[llm]"
 mine-safety examples/scene_graph.json --llm
 ```
 
-The configured reasoning model is `Qwen/Qwen2.5-3B-Instruct`, matching the paper. Inference stays on the
-machine; provide model weights through the normal Hugging Face cache or a pre-populated offline cache.
-
-## Perception training and inference
-
-Training data use a small, inspectable format. Each `.npz` contains:
-
-- `points`: float `[N,3]` xyz metres
-- `colors`: float `[N,3]` RGB in `[0,1]`
-- `labels`: integer `[N]` using the nine-class order in `configs/paper.yaml` (supervised data only)
-
-Each JSONL manifest row contains `{"path":"relative/or/absolute/scene.npz"}`.
+For point-cloud training and inference, install PyTorch and a compatible MinkowskiEngine build first:
 
 ```bash
-# Install PyTorch and a matching MinkowskiEngine build first.
 pip install -e ".[pointcloud]"
 python scripts/train_contrastive.py data/unlabelled.jsonl
 python scripts/train_semantic.py data/labelled.jsonl
@@ -137,30 +86,12 @@ python scripts/infer_point_cloud.py data/example.pcd \
   --checkpoint checkpoints/semantic_nine_class.pt
 ```
 
-The included `contrastive_backbone.pt` was copied from the prior workspace. The prior semantic checkpoint
-has only six output classes, so it is retained under `checkpoints/legacy_six_class/` for provenance and is
-never presented as a paper-compatible nine-class model. See [checkpoint notes](checkpoints/README.md).
-
-## Graph and reasoning contract
-
-The graph is the audit boundary. Dense voxel predictions are reduced to nodes containing IDs, labels,
-centroids, axis-aligned dimensions, PCA orientation, volume, voxel count, confidence, and entropy. Directed
-edges contain metric distance and deterministic flags. The temporal layer adds stable track IDs, velocity,
-and movement state. The LLM receives this bounded representation—not raw point clouds—and its JSON is
-rejected if it references an absent object or memory.
-
-Deterministic alerts remain independent of LLM availability and latency. Retrieval is selective: anomaly
-persistence over 3 seconds, a `developing_over_window` contextual pattern, or archive similarity above 0.70.
-Retrieved scores and previous model interpretations are advisory and cannot establish a hazard by themselves.
-
-The Appendix A and B contracts are implemented separately. Contextual results use
-`hazard_detected`, `risk_conditions`, `evidence`, `severity`, and `temporal_pattern`; longitudinal results
-add exact `memory_ids`, `current_evidence`, and `historical_evidence`. Unsupported fields and ungrounded
-object or memory identifiers are rejected.
+Training `.npz` files contain `points [N,3]`, `colors [N,3]` in `[0,1]`, and supervised files also contain
+integer `labels [N]`. JSONL manifests use `{"path":"relative/or/absolute/scene.npz"}`.
 
 ## Paper figures
 
-The figures below are supplied paper assets, not outputs regenerated by this repository.
+The following are author-supplied paper assets, not results regenerated by this repository.
 
 <table>
   <tr>
@@ -173,55 +104,18 @@ The figures below are supplied paper assets, not outputs regenerated by this rep
   </tr>
 </table>
 
-> Figure fidelity note: the supplied anomaly panel labels voxelisation as 0.05 m and the LLM panel uses
-> “emerging.” The executable configuration follows the paper text: 0.01 m voxels and Appendix B patterns
-> `recurring` or `escalating`. The figures are retained unchanged as author-supplied illustrations.
+> The supplied anomaly panel shows an earlier voxel setting. The executable configuration follows the
+> paper text and uses 0.01 m voxels. The original figure is retained unchanged.
 
-<details>
-<summary>Example semantic and anomaly detections</summary>
-
-![Example semantic and anomaly detections](assets/figures/detection%20results%20v2.png)
-
-</details>
-
-## Deployment
-
-The Vite build includes a static fallback data bundle, so GitHub Pages can host the read-only perception and
-visualisation experience. Live graph rebuilding and deterministic rules require the FastAPI service. CUDA
-MinkowskiEngine, local Qwen inference, and Qdrant require a GPU-capable Python host and cannot execute on
-GitHub Pages. Do not place model tokens in client-side JavaScript; keep advisory LLM inference behind the API.
-
-## Validation
-
-Fast tests cover directed graph construction, class-consistent Hungarian tracking, bounding-box clearance,
-congestion, schema parsing, and hallucinated-ID rejection:
+## Validation and deployment
 
 ```bash
 pip install -e ".[dev]"
 pytest -q
 ```
 
-Heavy CUDA, MinkowskiEngine, local-Qwen, and Qdrant integration tests are intentionally environment-specific.
-No experimental metrics are claimed by this code package without the paper dataset and evaluation protocol.
-
-## Reference images retained from the original workspace
-
-These are historical implementation snapshots, included because they were present in the source workspace.
-They are not regenerated results and are not evidence that this reconstructed pipeline reproduces paper metrics.
-
-<details>
-<summary>Legacy GPU utilisation snapshot</summary>
-
-![Legacy GPU utilisation](assets/figures/gpu_usage.jpeg)
-
-</details>
-
-<details>
-<summary>Legacy scene-graph and LLM console snapshot</summary>
-
-![Legacy scene graph and LLM output](assets/figures/llm_insights.jpeg)
-
-</details>
+GitHub Pages can host the read-only frontend bundle. Live Python graph processing, CUDA perception, local
+Qwen inference, and Qdrant require a suitable backend and cannot run directly in GitHub Pages.
 
 ## Cite
 
@@ -240,4 +134,4 @@ Paper: [arXiv:2606.03460](https://arxiv.org/abs/2606.03460) ·
 }
 ```
 
-Machine-readable citation metadata is in [`CITATION.cff`](CITATION.cff).
+Machine-readable metadata is available in [`CITATION.cff`](CITATION.cff).

@@ -23,7 +23,8 @@ class PointCloudPerceiver:
             num_classes=len(config["perception"]["classes"]),
         ).to(self.device)
         state = torch.load(checkpoint, map_location=self.device)
-        state = state.get("model_state_dict", state.get("model", state)) if isinstance(state, dict) else state
+        if isinstance(state, dict):
+            state = state.get("model_state_dict", state.get("model_state", state.get("model", state)))
         self.model.load_state_dict(state, strict=True)
         self.model.eval()
 
@@ -42,7 +43,7 @@ class PointCloudPerceiver:
         logits = self.model(sparse).F
         probabilities = torch.softmax(logits, dim=1).cpu().numpy()
         labels = probabilities.argmax(axis=1)
-        voxel_points = features[:, 3:6]
+        voxel_points = features[:, :3]
         instance_config = self.config["perception"]["instances"]
         nodes = extract_instances(
             voxel_points,

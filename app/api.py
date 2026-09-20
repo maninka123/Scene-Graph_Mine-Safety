@@ -15,7 +15,7 @@ from app.upload_service import create_job, perception_status, public_job
 
 class AnalysisRequest(BaseModel):
     nodes: list[dict[str, Any]]
-    edge_distance_m: float = Field(default=2.5, ge=0.25, le=8.0)
+    edge_distance_m: float = Field(default=8.0, ge=0.25, le=8.0)
 
 
 class ReasoningRequest(BaseModel):

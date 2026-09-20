@@ -88,7 +88,7 @@ function App() {
   const [colourMode, setColourMode] = useState('semantic')
   const [showBoxes, setShowBoxes] = useState(true)
   const [selectedId, setSelectedId] = useState(null)
-  const [edgeDistance, setEdgeDistance] = useState(2.5)
+  const [edgeDistance, setEdgeDistance] = useState(8.0)
   const [nodes, setNodes] = useState([])
   const [graph, setGraph] = useState(null)
   const [alerts, setAlerts] = useState([])
@@ -192,7 +192,7 @@ function App() {
 
   const reset = () => {
     if (!referencePayload) return
-    setPayload(referencePayload); setNodes(referencePayload.nodes); setGraph(referencePayload.graph); setAlerts(referencePayload.alerts); setSelectedId(referencePayload.nodes[1]?.id); setEdgeDistance(2.5); setLiveTimings(null); setQwenResult(null); setQwenError(''); setUploadJob(null)
+    setPayload(referencePayload); setNodes(referencePayload.nodes); setGraph(referencePayload.graph); setAlerts(referencePayload.alerts); setSelectedId(referencePayload.nodes[1]?.id); setEdgeDistance(8.0); setLiveTimings(null); setQwenResult(null); setQwenError(''); setUploadJob(null)
   }
 
   const runQwen = async () => {
@@ -216,7 +216,7 @@ function App() {
   const maxTiming = useMemo(() => payload ? Math.max(...payload.timings.filter((item) => item.mean_ms).map((item) => item.mean_ms)) : 1, [payload])
 
   if (error) return <main className="fatal"><AlertTriangle /><h1>MineGraph Studio could not start</h1><p>{error}</p></main>
-  if (!payload || !graph) return <main className="loading"><span className="loader" /><p>Preparing simulator frame…</p></main>
+  if (!payload || !graph) return <main className="loading"><span className="loader" /><p>Preparing demonstration frame…</p></main>
 
   return (
     <div className="app-shell">
@@ -231,7 +231,7 @@ function App() {
           <div>
             <div className="eyebrow"><span>RESEARCH DEMONSTRATOR</span><span className="wip">Work in progress</span></div>
             <h1>From raw point cloud<br />to explainable safety context.</h1>
-            <p>Explore a recorded simulator frame through the paper’s perception, scene-graph, and deterministic reasoning pipeline.</p>
+            <p>Explore one recorded frame through the perception, scene-graph, and deterministic reasoning stages.</p>
           </div>
           <div className="hero-actions">
             <input ref={fileInput} className="file-input" type="file" accept=".pcd,.ply,.npz" onChange={uploadPointCloud} />
@@ -240,7 +240,7 @@ function App() {
           </div>
         </section>
 
-        <aside className="notice"><Info size={17} /><span><b>Research demonstrator.</b> {payload.demo.uploaded ? 'This point cloud was processed locally by the trained six-class MinkUNet checkpoint; its scene graph and rules are live outputs.' : 'The included scan uses its recorded MinkUNet output. Upload a PCD, PLY, or NPZ file to run real local GPU segmentation.'} This is not connected to a simulator, sensors, alarms, or operational controls.</span></aside>
+        <aside className="notice"><Info size={17} /><span><b>Pipeline visualisation only.</b> This single-frame demonstrator shows perception, one scene graph, deterministic rules, and optional reasoning. It does not build the paper’s temporal graph and is not connected to a simulator, live sensors, alarms, or operational controls.</span></aside>
 
         <section className="upload-dock">
           <div><span className="upload-mark"><UploadCloud size={20} /></span><span><b>{payload.demo.uploaded ? payload.demo.filename : 'Process your own point cloud'}</b><small>{payload.demo.uploaded ? `${payload.demo.point_count.toLocaleString()} points · ${payload.demo.model_provenance}` : 'PCD, PLY, or NPZ · up to 250 MB · processed locally'}</small></span></div>
@@ -287,10 +287,10 @@ function App() {
           <div className="findings">{alerts.length ? alerts.map((alert, index) => <article className="card finding" key={`${alert.rule}-${index}`}><div className="finding-head"><span className={`severity ${alert.severity}`}>{alert.severity}</span><b>{alert.rule.replaceAll('_', ' ')}</b></div><p>{alert.message}</p><div className="evidence">{Object.entries(alert.evidence).map(([key, value]) => <span key={key}><small>{key.replaceAll('_', ' ')}</small><b>{typeof value === 'number' ? value.toFixed(3) : value}</b></span>)}</div><div className="object-links">{alert.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); setTab('graph') }}>{id}</button>)}</div></article>) : <article className="card empty-state"><ShieldCheck /><h3>Safe under current deterministic rules</h3><p>Add a test worker to see object-grounded proximity evidence.</p><button className="primary small" onClick={addWorker}><Plus size={15} />Add test worker</button></article>}</div>
           <article className="card qwen-workspace">
             <div className="qwen-header"><div className="qwen-title"><span className="qwen-icon"><BrainCircuit size={22} /></span><span><span className="overline">CONTEXTUAL MODEL</span><h2>Qwen 2.5 · 3B Instruct</h2><small>{qwenStatus?.available ? `${qwenStatus.loaded ? 'Loaded' : 'Ready locally'} · ${qwenStatus.gpu || 'CPU'}` : 'Local model not detected'}</small></span></div><button className="primary" onClick={runQwen} disabled={qwenLoading || !apiConnected || !qwenStatus?.available}>{qwenLoading ? <span className="button-spinner" /> : <Sparkles size={16} />}{qwenLoading ? (qwenStatus?.loaded ? 'Reasoning…' : 'Loading model…') : 'Run Qwen assessment'}</button></div>
-            <div className="prompt-contract"><span><CheckCircle2 size={15} />Appendix A prompt</span><span><CheckCircle2 size={15} />Strict JSON schema</span><span><CheckCircle2 size={15} />Exact object-ID grounding</span><span><CheckCircle2 size={15} />Deterministic flags preserved</span></div>
+            <div className="prompt-contract"><span><CheckCircle2 size={15} />Appendix A contract</span><span><CheckCircle2 size={15} />Single-frame demo input</span><span><CheckCircle2 size={15} />Exact object-ID grounding</span><span><CheckCircle2 size={15} />Deterministic flags preserved</span></div>
             {qwenLoading && <div className="qwen-progress"><span className="thinking-orb" /><div><b>{qwenStatus?.loaded ? 'Evaluating the current graph' : 'Loading local weights onto the GPU'}</b><p>The model receives {graph.nodes.length} nodes, {graph.edges.length} directed relations, and {alerts.length} established deterministic finding{alerts.length === 1 ? '' : 's'}.</p></div></div>}
             {qwenError && <div className="qwen-error"><AlertTriangle size={17} /><span><b>Qwen could not complete the assessment</b>{qwenError}</span></div>}
-            {!qwenLoading && !qwenResult && !qwenError && <div className="qwen-empty"><Sparkles /><div><b>Ready for grounded contextual reasoning</b><p>Qwen assesses only additional contextual hazards. It does not repeat or override deterministic findings.</p></div></div>}
+            {!qwenLoading && !qwenResult && !qwenError && <div className="qwen-empty"><Sparkles /><div><b>Ready for grounded single-frame reasoning</b><p>Qwen assesses the displayed graph only. Full temporal reasoning belongs to the offline paper pipeline and is not simulated here.</p></div></div>}
             {qwenResult && <div className="qwen-result">
               <div className={`assessment-banner ${qwenResult.assessment.hazard_detected ? 'hazard' : 'clear'}`}><span>{qwenResult.assessment.hazard_detected ? <AlertTriangle /> : <ShieldCheck />}</span><div><small>VALIDATED QWEN OUTPUT</small><h3>{qwenResult.assessment.hazard_detected ? `${qwenResult.assessment.risk_conditions.length} additional contextual condition${qwenResult.assessment.risk_conditions.length === 1 ? '' : 's'}` : 'No additional contextual hazard'}</h3><p>{qwenResult.assessment.explanation}</p></div></div>
               {qwenResult.assessment.risk_conditions.length > 0 && <div className="qwen-conditions">{qwenResult.assessment.risk_conditions.map((condition, index) => <div className="qwen-condition" key={`${condition.condition}-${index}`}><div><span className={`severity ${condition.severity}`}>{condition.severity}</span><b>{condition.condition}</b><em>{condition.temporal_pattern.replaceAll('_', ' ')}</em></div><p>{condition.evidence}</p><div className="object-links">{condition.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); setTab('graph') }}>{id}</button>)}</div></div>)}</div>}
@@ -305,7 +305,7 @@ function App() {
           <aside className="side-stack"><article className="card"><span className="overline">BENCHMARK SYSTEM</span><h2>{payload.timing_environment.gpu}</h2><dl className="system-list"><div><dt>CUDA</dt><dd>{payload.timing_environment.cuda_available ? 'Available' : 'Unavailable'}</dd></div><div><dt>Frame repeats</dt><dd>{payload.timing_environment.repeats}</dd></div><div><dt>Context model</dt><dd>{payload.timing_environment.model}</dd></div><div><dt>Measured</dt><dd>{payload.timing_environment.generated_at.slice(0, 10)}</dd></div></dl></article><article className="card live-card"><span className="overline">THIS SESSION</span><h2>Live post-processing</h2>{liveTimings ? <><div className="live-number">{liveTimings.total_postprocess_ms.toFixed(3)} <small>ms</small></div><p>Python graph construction and deterministic rule evaluation on this machine.</p></> : <><Clock3 /><p>Run the pipeline to measure the lightweight graph and rule stages on this machine.</p></>}</article></aside>
         </section>}
 
-        <footer><span>MineGraph Studio · Paper-aligned research interface</span><span>{payload.demo.uploaded ? 'User point cloud · locally processed' : 'Included simulator frame'} · No live control connection</span></footer>
+        <footer><span>MineGraph Studio · Research pipeline demonstrator</span><span>{payload.demo.uploaded ? 'User point cloud · locally processed' : 'Included demonstration frame'} · No temporal or live control connection</span></footer>
       </main>
     </div>
   )

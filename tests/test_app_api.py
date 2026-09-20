@@ -58,10 +58,9 @@ def test_perception_upload_status_contract():
     response = client.get("/api/perception/status")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["checkpoint"] == "legacy_six_class/semantic_best.pt"
-    assert payload["classes"] == ["wall", "equipment", "human", "conveyor", "roof", "other"]
-    assert payload["paper_checkpoint"] is False
-    assert ".pcd" in payload["accepted_formats"]
+    assert payload["checkpoint"] == "demo_adapter/semantic_best.pt"
+    assert payload["accepted_formats"] == [".npz", ".pcd", ".ply"]
+    assert payload["max_upload_mb"] == 250
 
 
 def test_point_cloud_upload_rejects_unsupported_files():

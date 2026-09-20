@@ -32,5 +32,8 @@ def read_point_cloud(path: str | Path) -> tuple[np.ndarray, np.ndarray]:
 def voxelize(points: np.ndarray, colors: np.ndarray, voxel_size_m: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     coordinates = np.floor(points / voxel_size_m).astype(np.int32)
     unique, first, inverse = np.unique(coordinates, axis=0, return_index=True, return_inverse=True)
-    features = np.concatenate([colors[first], points[first]], axis=1).astype(np.float32)
+    # The paper's sparse-tensor contract is XYZRGB: metric coordinates first,
+    # followed by RGB values normalised to [0, 1].  Training and inference both
+    # call this function, so the feature order stays identical end to end.
+    features = np.concatenate([points[first], colors[first]], axis=1).astype(np.float32)
     return unique, features, inverse
