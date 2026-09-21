@@ -107,6 +107,7 @@ function App() {
   const [perceptionStatus, setPerceptionStatus] = useState(null)
   const [uploadJob, setUploadJob] = useState(null)
   const [workerPlacement, setWorkerPlacement] = useState(null)
+  const [workerPreview, setWorkerPreview] = useState(false)
   const fileInput = useRef(null)
   const viewRef = useRef(null)
 
@@ -125,7 +126,7 @@ function App() {
   useEffect(() => {
     if (!workerPlacement) return undefined
     const previousOverflow = document.body.style.overflow
-    const closeOnEscape = (event) => { if (event.key === 'Escape') setWorkerPlacement(null) }
+    const closeOnEscape = (event) => { if (event.key === 'Escape') { setWorkerPlacement(null); setWorkerPreview(false) } }
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', closeOnEscape)
     return () => {
@@ -225,6 +226,7 @@ function App() {
     const equipment = nodes.find((node) => node.label === 'equipment')
     const fallback = sceneBounds.min.map((value, index) => (value + sceneBounds.max[index]) / 2)
     setWorkerPlacement((equipment?.centroid || fallback).map((value) => Number(value.toFixed(3))))
+    setWorkerPreview(false)
   }
 
   const placeWorker = useCallback((position) => {
@@ -246,7 +248,7 @@ function App() {
       confidence: 1, entropy: 0, is_anomaly: false, active: true, velocity: [0, 0, 0], movement_state: 'stationary', synthetic: true,
     }
     const next = [...nodes, worker]
-    setWorkerPlacement(null); setNodes(next); setSelectedId(worker.id); setTab('graph'); setActiveStage('graph')
+    setWorkerPlacement(null); setWorkerPreview(false); setNodes(next); setSelectedId(worker.id); setTab('graph'); setActiveStage('graph')
     await runAnalysis(next, edgeDistance)
     setActiveStage('graph')
   }
@@ -368,12 +370,12 @@ function App() {
 
         <footer><span>MineGraph Studio · Research pipeline demonstrator</span><span>{payload.demo.uploaded ? 'User point cloud · locally processed' : 'Included demonstration frame'} · No temporal or live control connection</span></footer>
       </main>
-      {workerPlacement && <div className="placement-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkerPlacement(null) }}>
+      {workerPlacement && <div className="placement-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) { setWorkerPlacement(null); setWorkerPreview(false) } }}>
         <section className="placement-sheet" role="dialog" aria-modal="true" aria-labelledby="placement-title">
-          <header><div><span className="overline">SCENE EDITOR</span><h2 id="placement-title">Place a test worker</h2><p>Click the scene to set X and Y, adjust any coordinate if needed, then confirm.</p></div><button className="icon-button" onClick={() => setWorkerPlacement(null)} aria-label="Close worker placement"><X size={18} /></button></header>
+          <header><div><span className="overline">SCENE EDITOR</span><h2 id="placement-title">Place a test person</h2><p>Set the centroid, add the person to the preview, keep adjusting until satisfied, then confirm.</p></div><button className="icon-button" onClick={() => { setWorkerPlacement(null); setWorkerPreview(false) }} aria-label="Close worker placement"><X size={18} /></button></header>
           <div className="placement-layout">
-            <div className="placement-canvas"><PointCloud cloud={payload.point_cloud} nodes={[...nodes, workerDraft]} mode="semantic" showBoxes selectedId={workerDraft.id} onSelect={() => {}} placementMode placementZ={workerPlacement[2]} onPlace={placeWorker} /><div className="placement-hint"><MapPin size={15} />Click a location · Drag to orbit · Scroll to zoom</div></div>
-            <aside className="placement-controls"><div className="worker-preview"><span><HardHat size={20} /></span><div><b>Synthetic worker</b><small>0.50 × 0.50 × 1.75 m</small></div></div><p>The red box is a preview. Nothing is added until you confirm.</p><div className="coordinate-grid">{['X', 'Y', 'Z'].map((axis, index) => <label key={axis}><span>{axis} coordinate <small>m</small></span><input type="number" step="0.05" min={sceneBounds.min[index]} max={sceneBounds.max[index]} value={workerPlacement[index]} onChange={(event) => updateWorkerCoordinate(index, event.target.value)} /></label>)}</div><div className="placement-range"><span>Scene bounds</span><small>X {sceneBounds.min[0].toFixed(1)}–{sceneBounds.max[0].toFixed(1)} · Y {sceneBounds.min[1].toFixed(1)}–{sceneBounds.max[1].toFixed(1)} · Z {sceneBounds.min[2].toFixed(1)}–{sceneBounds.max[2].toFixed(1)} m</small></div><div className="placement-actions"><button className="secondary" onClick={() => setWorkerPlacement(null)}>Cancel</button><button className="primary" onClick={confirmWorker} disabled={Boolean(runningStage)}><Check size={16} />Add at this position</button></div></aside>
+            <div className="placement-canvas"><PointCloud cloud={payload.point_cloud} nodes={workerPreview ? [...nodes, workerDraft] : nodes} mode="semantic" showBoxes showLabels showPoints={false} selectedId={workerPreview ? workerDraft.id : null} onSelect={() => {}} placementMode placementPoint={workerPlacement} placementZ={workerPlacement[2]} onPlace={placeWorker} /><div className="placement-hint"><MapPin size={15} />Click to set centroid X/Y · Drag to orbit · Scroll to zoom</div></div>
+            <aside className="placement-controls"><div className="worker-preview"><span><HardHat size={20} /></span><div><b>Synthetic person</b><small>Box dimensions · 0.50 × 0.50 × 1.75 m</small></div></div><p>{workerPreview ? 'Preview active. Change X, Y, or Z as often as needed; the red person box updates immediately.' : 'The blue marker is the proposed centroid. Click Add person when you are ready to preview the red box.'}</p><div className="centroid-label"><MapPin size={14} /><span><b>Box centroid</b><small>X, Y and Z define the centre of the person box.</small></span></div><div className="coordinate-grid">{['X', 'Y', 'Z'].map((axis, index) => <label key={axis}><span>{axis} centroid <small>m</small></span><input type="number" step="0.05" min={sceneBounds.min[index]} max={sceneBounds.max[index]} value={workerPlacement[index]} onChange={(event) => updateWorkerCoordinate(index, event.target.value)} /></label>)}</div><button className={`preview-person ${workerPreview ? 'active' : ''}`} onClick={() => setWorkerPreview(true)}>{workerPreview ? <Check size={16} /> : <Plus size={16} />}{workerPreview ? 'Person added to preview' : 'Add person'}</button><div className="placement-range"><span>Scene bounds</span><small>X {sceneBounds.min[0].toFixed(1)}–{sceneBounds.max[0].toFixed(1)} · Y {sceneBounds.min[1].toFixed(1)}–{sceneBounds.max[1].toFixed(1)} · Z {sceneBounds.min[2].toFixed(1)}–{sceneBounds.max[2].toFixed(1)} m</small></div><div className="placement-actions"><button className="secondary" onClick={() => { setWorkerPlacement(null); setWorkerPreview(false) }}>Cancel</button><button className="primary" onClick={confirmWorker} disabled={!workerPreview || Boolean(runningStage)}><Check size={16} />Confirm person</button></div></aside>
           </div>
         </section>
       </div>}
