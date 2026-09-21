@@ -1,5 +1,5 @@
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, AlertTriangle, BrainCircuit, Check, CheckCircle2, ChevronRight, CircleGauge, Clock3, Cpu, FileUp, GitBranch, HardHat, Info, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles, Timer, UploadCloud } from 'lucide-react'
+import { Activity, AlertTriangle, BrainCircuit, Check, CheckCircle2, ChevronRight, CircleGauge, Clock3, Cpu, FileUp, GitBranch, HardHat, Info, MapPin, Play, Plus, RotateCcw, ScanLine, ShieldCheck, Sparkles, Timer, UploadCloud, X } from 'lucide-react'
 import PointCloud from './components/PointCloud.jsx'
 import SceneGraph from './components/SceneGraph.jsx'
 
@@ -10,6 +10,11 @@ const tabs = [
   { id: 'reasoning', label: 'Reasoning', icon: ShieldCheck },
   { id: 'performance', label: 'Performance', icon: CircleGauge },
 ]
+const stageTabs = {
+  pcd: 'perception', voxelise: 'perception', minkunet: 'perception', instances: 'perception',
+  graph: 'graph', rules: 'reasoning', qwen: 'reasoning',
+}
+const tabStages = { perception: 'minkunet', graph: 'graph', reasoning: 'rules' }
 
 async function loadDemo() {
   try {
@@ -27,14 +32,14 @@ function Stat({ label, value, suffix }) {
   return <div className="stat"><span>{label}</span><strong>{value}{suffix && <small>{suffix}</small>}</strong></div>
 }
 
-function Pipeline({ stages, activeStage, runningStage, setActiveStage }) {
+function Pipeline({ stages, activeStage, runningStage, onSelectStage }) {
   return (
     <div className="pipeline" aria-label="Processing pipeline">
       {stages.map((stage, index) => {
         const active = stage.id === activeStage
         const running = stage.id === runningStage
         return <div className="pipeline-wrap" key={stage.id}>
-          <button className={`pipeline-stage ${active ? 'active' : ''} ${running ? 'running' : ''}`} onClick={() => setActiveStage(stage.id)}>
+          <button className={`pipeline-stage ${active ? 'active' : ''} ${running ? 'running' : ''}`} onClick={() => onSelectStage(stage.id)} aria-label={`Open ${stage.label} stage`}>
             <span className="stage-index">{running ? <span className="spinner" /> : index + 1}</span>
             <span><b>{stage.label}</b><small>{stage.detail}</small></span>
             <em className={`source-tag ${stage.kind}`}>{stage.kind}</em>
@@ -101,7 +106,9 @@ function App() {
   const [qwenError, setQwenError] = useState('')
   const [perceptionStatus, setPerceptionStatus] = useState(null)
   const [uploadJob, setUploadJob] = useState(null)
+  const [workerPlacement, setWorkerPlacement] = useState(null)
   const fileInput = useRef(null)
+  const viewRef = useRef(null)
 
   useEffect(() => {
     loadDemo().then(({ data, api }) => {
@@ -114,6 +121,18 @@ function App() {
     fetch(`${API}/api/model/status`).then((response) => response.json()).then(setQwenStatus).catch(() => setQwenStatus(null))
     fetch(`${API}/api/perception/status`).then((response) => response.json()).then(setPerceptionStatus).catch(() => setPerceptionStatus(null))
   }, [apiConnected])
+
+  useEffect(() => {
+    if (!workerPlacement) return undefined
+    const previousOverflow = document.body.style.overflow
+    const closeOnEscape = (event) => { if (event.key === 'Escape') setWorkerPlacement(null) }
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [workerPlacement])
 
   const applyScene = useCallback((scene) => {
     setPayload((current) => ({ ...scene, timings: current.timings, timing_environment: current.timing_environment }))
@@ -171,23 +190,65 @@ function App() {
     setRunningStage(null)
   }, [apiConnected, edgeDistance, nodes, payload])
 
+  const navigateTo = useCallback((nextTab, stage = tabStages[nextTab], scroll = true) => {
+    setTab(nextTab)
+    if (stage) setActiveStage(stage)
+    if (scroll) requestAnimationFrame(() => viewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [])
+
+  const selectPipelineStage = useCallback((stage) => {
+    navigateTo(stageTabs[stage] || 'perception', stage)
+  }, [navigateTo])
+
   useEffect(() => {
     if (!payload || !apiConnected) return
     const timer = setTimeout(() => runAnalysis(nodes, edgeDistance).catch((reason) => setError(reason.message)), 280)
     return () => clearTimeout(timer)
   }, [edgeDistance]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const addWorker = async () => {
+  const sceneBounds = useMemo(() => {
+    const positions = payload?.point_cloud?.positions || []
+    if (!positions.length) return { min: [0, 0, 0], max: [1, 1, 1] }
+    return positions.reduce((bounds, point) => ({
+      min: point.map((value, index) => Math.min(value, bounds.min[index])),
+      max: point.map((value, index) => Math.max(value, bounds.max[index])),
+    }), { min: [...positions[0]], max: [...positions[0]] })
+  }, [payload])
+
+  const workerDraft = useMemo(() => workerPlacement ? {
+    id: 'personnel-placement-preview', label: 'personnel', centroid: workerPlacement,
+    bbox_dimensions: [0.5, 0.5, 1.75], orientation: [1, 0, 0], volume_m3: 0.44, voxel_count: 1,
+    confidence: 1, entropy: 0, is_anomaly: false, active: true, velocity: [0, 0, 0], movement_state: 'stationary', synthetic: true,
+  } : null, [workerPlacement])
+
+  const openWorkerPlacement = () => {
     const equipment = nodes.find((node) => node.label === 'equipment')
+    const fallback = sceneBounds.min.map((value, index) => (value + sceneBounds.max[index]) / 2)
+    setWorkerPlacement((equipment?.centroid || fallback).map((value) => Number(value.toFixed(3))))
+  }
+
+  const placeWorker = useCallback((position) => {
+    setWorkerPlacement(position.map((value, index) => Math.max(sceneBounds.min[index], Math.min(sceneBounds.max[index], Number(value.toFixed(3))))))
+  }, [sceneBounds])
+
+  const updateWorkerCoordinate = (index, value) => {
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) return
+    setWorkerPlacement((current) => current.map((coordinate, axis) => axis === index ? Math.max(sceneBounds.min[axis], Math.min(sceneBounds.max[axis], numeric)) : coordinate))
+  }
+
+  const confirmWorker = async () => {
+    if (!workerPlacement) return
     const worker = {
       id: `personnel-test-${nodes.filter((node) => node.synthetic).length + 1}`,
-      label: 'personnel', centroid: [equipment.centroid[0] + 0.8, equipment.centroid[1], equipment.centroid[2]],
+      label: 'personnel', centroid: workerPlacement,
       bbox_dimensions: [0.5, 0.5, 1.75], orientation: [1, 0, 0], volume_m3: 0.44, voxel_count: 1,
       confidence: 1, entropy: 0, is_anomaly: false, active: true, velocity: [0, 0, 0], movement_state: 'stationary', synthetic: true,
     }
     const next = [...nodes, worker]
-    setNodes(next); setSelectedId(worker.id); setTab('graph')
+    setWorkerPlacement(null); setNodes(next); setSelectedId(worker.id); setTab('graph'); setActiveStage('graph')
     await runAnalysis(next, edgeDistance)
+    setActiveStage('graph')
   }
 
   const reset = () => {
@@ -222,7 +283,7 @@ function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand"><img src="./app-icon.svg" alt="" /><span><b>MineGraph</b> Studio</span></div>
-        <nav>{tabs.map(({ id, label, icon }) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>{createElement(icon, { size: 16 })}{label}</button>)}</nav>
+        <nav>{tabs.map(({ id, label, icon }) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => navigateTo(id)}>{createElement(icon, { size: 16 })}{label}</button>)}</nav>
         <div className={`connection ${apiConnected ? 'online' : 'static'}`}><i />{apiConnected ? 'Python API live' : 'Static demo'}</div>
       </header>
 
@@ -251,7 +312,7 @@ function App() {
 
         <UploadProgress job={uploadJob} />
 
-        <Pipeline stages={payload.pipeline} activeStage={activeStage} runningStage={runningStage} setActiveStage={setActiveStage} />
+        <Pipeline stages={payload.pipeline} activeStage={activeStage} runningStage={runningStage} onSelectStage={selectPipelineStage} />
 
         <section className="metrics-strip">
           <Stat label="Input points" value={payload.demo.point_count.toLocaleString()} />
@@ -262,7 +323,7 @@ function App() {
           <Stat label="Reference GPU" value="RTX 4080" />
         </section>
 
-        {tab === 'perception' && <section className="content-grid">
+        {tab === 'perception' && <section className="content-grid view-anchor" ref={viewRef}>
           <article className="card visual-card">
             <div className="card-head"><div><span className="overline">3D PERCEPTION</span><h2>{payload.demo.filename}</h2></div><div className="visual-controls"><Segmented label="Point colouring" value={colourMode} onChange={setColourMode} options={[{ value: 'semantic', label: 'Semantic' }, { value: 'rgb', label: 'RGB' }]} /><label className="switch"><input type="checkbox" checked={showBoxes} onChange={(event) => setShowBoxes(event.target.checked)} /><span />Boxes</label></div></div>
             <PointCloud cloud={payload.point_cloud} nodes={nodes} mode={colourMode} showBoxes={showBoxes} selectedId={selectedId} onSelect={setSelectedId} />
@@ -277,14 +338,14 @@ function App() {
           </aside>
         </section>}
 
-        {tab === 'graph' && <section className="content-grid">
+        {tab === 'graph' && <section className="content-grid view-anchor" ref={viewRef}>
           <article className="card visual-card"><div className="card-head"><div><span className="overline">OBJECT-RELATION GRAPH</span><h2>Interactive scene graph</h2></div><span className="graph-count">{graph.nodes.length} nodes · {graph.edges.length} directed edges</span></div><SceneGraph graph={graph} colours={payload.class_colours} selectedId={selectedId} onSelect={setSelectedId} /></article>
-          <aside className="side-stack"><article className="card"><div className="card-head"><div><span className="overline">GRAPH CONTROLS</span><h2>Relation radius</h2></div><b>{edgeDistance.toFixed(1)} m</b></div><input className="range" type="range" min="0.5" max="8" step="0.25" value={edgeDistance} onChange={(event) => setEdgeDistance(Number(event.target.value))} /><div className="range-labels"><span>Local</span><span>Paper maximum 8 m</span></div><p className="muted">The graph is rebuilt in Python as this radius changes. Reciprocal directed relations are retained by the paper-aligned graph contract.</p></article><article className="card"><div className="card-head"><div><span className="overline">SCENE EDITOR</span><h2>Test a safety case</h2></div><HardHat size={22} /></div><p className="muted">Add a clearly marked synthetic worker beside the detected equipment to exercise proximity evidence without altering the recorded perception result.</p><div className="button-row"><button className="primary small" onClick={addWorker}><Plus size={15} />Add worker</button><button className="secondary small" onClick={reset}><RotateCcw size={15} />Reset</button></div></article></aside>
+          <aside className="side-stack"><article className="card"><div className="card-head"><div><span className="overline">GRAPH CONTROLS</span><h2>Relation radius</h2></div><b>{edgeDistance.toFixed(1)} m</b></div><input className="range" type="range" min="0.5" max="8" step="0.25" value={edgeDistance} onChange={(event) => setEdgeDistance(Number(event.target.value))} /><div className="range-labels"><span>Local</span><span>Paper maximum 8 m</span></div><p className="muted">The graph is rebuilt in Python as this radius changes. Reciprocal directed relations are retained by the paper-aligned graph contract.</p></article><article className="card"><div className="card-head"><div><span className="overline">SCENE EDITOR</span><h2>Test a safety case</h2></div><HardHat size={22} /></div><p className="muted">Place a clearly marked synthetic worker at a position you choose, then rebuild the graph and rules from that exact location.</p><div className="button-row"><button className="primary small" onClick={openWorkerPlacement}><Plus size={15} />Place worker</button><button className="secondary small" onClick={reset}><RotateCcw size={15} />Reset</button></div></article></aside>
         </section>}
 
-        {tab === 'reasoning' && <section className="reasoning-grid">
+        {tab === 'reasoning' && <section className="reasoning-grid view-anchor" ref={viewRef}>
           <article className={`card safety-summary ${alerts.length ? 'warning' : 'safe'}`}><div className="status-icon">{alerts.length ? <AlertTriangle /> : <ShieldCheck />}</div><div><span className="overline">DETERMINISTIC LAYER</span><h2>{alerts.length ? `${alerts.length} rule finding${alerts.length === 1 ? '' : 's'}` : 'No rule findings in recorded frame'}</h2><p>{alerts.length ? 'Review the grounded evidence below. Synthetic scenario objects are explicitly labelled.' : 'The recorded scan contains no personnel detection, so person–equipment rules do not fire.'}</p></div></article>
-          <div className="findings">{alerts.length ? alerts.map((alert, index) => <article className="card finding" key={`${alert.rule}-${index}`}><div className="finding-head"><span className={`severity ${alert.severity}`}>{alert.severity}</span><b>{alert.rule.replaceAll('_', ' ')}</b></div><p>{alert.message}</p><div className="evidence">{Object.entries(alert.evidence).map(([key, value]) => <span key={key}><small>{key.replaceAll('_', ' ')}</small><b>{typeof value === 'number' ? value.toFixed(3) : value}</b></span>)}</div><div className="object-links">{alert.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); setTab('graph') }}>{id}</button>)}</div></article>) : <article className="card empty-state"><ShieldCheck /><h3>Safe under current deterministic rules</h3><p>Add a test worker to see object-grounded proximity evidence.</p><button className="primary small" onClick={addWorker}><Plus size={15} />Add test worker</button></article>}</div>
+          <div className="findings">{alerts.length ? alerts.map((alert, index) => <article className="card finding" key={`${alert.rule}-${index}`}><div className="finding-head"><span className={`severity ${alert.severity}`}>{alert.severity}</span><b>{alert.rule.replaceAll('_', ' ')}</b></div><p>{alert.message}</p><div className="evidence">{Object.entries(alert.evidence).map(([key, value]) => <span key={key}><small>{key.replaceAll('_', ' ')}</small><b>{typeof value === 'number' ? value.toFixed(3) : value}</b></span>)}</div><div className="object-links">{alert.object_ids.map((id) => <button key={id} onClick={() => { setSelectedId(id); navigateTo('graph', 'graph') }}>{id}</button>)}</div></article>) : <article className="card empty-state"><ShieldCheck /><h3>Safe under current deterministic rules</h3><p>Place a test worker to see object-grounded proximity evidence.</p><button className="primary small" onClick={openWorkerPlacement}><Plus size={15} />Place test worker</button></article>}</div>
           <article className="card qwen-workspace">
             <div className="qwen-header"><div className="qwen-title"><span className="qwen-icon"><BrainCircuit size={22} /></span><span><span className="overline">CONTEXTUAL MODEL</span><h2>Qwen 2.5 · 3B Instruct</h2><small>{qwenStatus?.available ? `${qwenStatus.loaded ? 'Loaded' : 'Ready locally'} · ${qwenStatus.gpu || 'CPU'}` : 'Local model not detected'}</small></span></div><button className="primary" onClick={runQwen} disabled={qwenLoading || !apiConnected || !qwenStatus?.available}>{qwenLoading ? <span className="button-spinner" /> : <Sparkles size={16} />}{qwenLoading ? (qwenStatus?.loaded ? 'Reasoning…' : 'Loading model…') : 'Run Qwen assessment'}</button></div>
             <div className="prompt-contract"><span><CheckCircle2 size={15} />Appendix A contract</span><span><CheckCircle2 size={15} />Single-frame demo input</span><span><CheckCircle2 size={15} />Exact object-ID grounding</span><span><CheckCircle2 size={15} />Deterministic flags preserved</span></div>
@@ -300,13 +361,22 @@ function App() {
           </article>
         </section>}
 
-        {tab === 'performance' && <section className="performance-grid">
+        {tab === 'performance' && <section className="performance-grid view-anchor" ref={viewRef}>
           <article className="card timing-card"><div className="card-head"><div><span className="overline">REFERENCE EXECUTION TIME</span><h2>Measured pipeline stages</h2></div><span className="recorded-pill"><Activity size={14} />Recorded · 7 runs</span></div><div className="timings">{payload.timings.map((timing) => <div className="timing-row" key={timing.id}><span>{timing.label}<small>{timing.source}</small></span><div className="timing-track"><i style={{ width: `${Math.max(1, Math.sqrt(timing.mean_ms / maxTiming) * 100)}%` }} /></div><b>{timing.mean_ms < 1 ? timing.mean_ms.toFixed(3) : timing.mean_ms.toFixed(1)} ms</b></div>)}</div><p className="footnote">Bars use a square-root scale so sub-millisecond graph stages remain visible beside Qwen generation. Values are recorded measurements, not estimates.</p></article>
           <aside className="side-stack"><article className="card"><span className="overline">BENCHMARK SYSTEM</span><h2>{payload.timing_environment.gpu}</h2><dl className="system-list"><div><dt>CUDA</dt><dd>{payload.timing_environment.cuda_available ? 'Available' : 'Unavailable'}</dd></div><div><dt>Frame repeats</dt><dd>{payload.timing_environment.repeats}</dd></div><div><dt>Context model</dt><dd>{payload.timing_environment.model}</dd></div><div><dt>Measured</dt><dd>{payload.timing_environment.generated_at.slice(0, 10)}</dd></div></dl></article><article className="card live-card"><span className="overline">THIS SESSION</span><h2>Live post-processing</h2>{liveTimings ? <><div className="live-number">{liveTimings.total_postprocess_ms.toFixed(3)} <small>ms</small></div><p>Python graph construction and deterministic rule evaluation on this machine.</p></> : <><Clock3 /><p>Run the pipeline to measure the lightweight graph and rule stages on this machine.</p></>}</article></aside>
         </section>}
 
         <footer><span>MineGraph Studio · Research pipeline demonstrator</span><span>{payload.demo.uploaded ? 'User point cloud · locally processed' : 'Included demonstration frame'} · No temporal or live control connection</span></footer>
       </main>
+      {workerPlacement && <div className="placement-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setWorkerPlacement(null) }}>
+        <section className="placement-sheet" role="dialog" aria-modal="true" aria-labelledby="placement-title">
+          <header><div><span className="overline">SCENE EDITOR</span><h2 id="placement-title">Place a test worker</h2><p>Click the scene to set X and Y, adjust any coordinate if needed, then confirm.</p></div><button className="icon-button" onClick={() => setWorkerPlacement(null)} aria-label="Close worker placement"><X size={18} /></button></header>
+          <div className="placement-layout">
+            <div className="placement-canvas"><PointCloud cloud={payload.point_cloud} nodes={[...nodes, workerDraft]} mode="semantic" showBoxes selectedId={workerDraft.id} onSelect={() => {}} placementMode placementZ={workerPlacement[2]} onPlace={placeWorker} /><div className="placement-hint"><MapPin size={15} />Click a location · Drag to orbit · Scroll to zoom</div></div>
+            <aside className="placement-controls"><div className="worker-preview"><span><HardHat size={20} /></span><div><b>Synthetic worker</b><small>0.50 × 0.50 × 1.75 m</small></div></div><p>The red box is a preview. Nothing is added until you confirm.</p><div className="coordinate-grid">{['X', 'Y', 'Z'].map((axis, index) => <label key={axis}><span>{axis} coordinate <small>m</small></span><input type="number" step="0.05" min={sceneBounds.min[index]} max={sceneBounds.max[index]} value={workerPlacement[index]} onChange={(event) => updateWorkerCoordinate(index, event.target.value)} /></label>)}</div><div className="placement-range"><span>Scene bounds</span><small>X {sceneBounds.min[0].toFixed(1)}–{sceneBounds.max[0].toFixed(1)} · Y {sceneBounds.min[1].toFixed(1)}–{sceneBounds.max[1].toFixed(1)} · Z {sceneBounds.min[2].toFixed(1)}–{sceneBounds.max[2].toFixed(1)} m</small></div><div className="placement-actions"><button className="secondary" onClick={() => setWorkerPlacement(null)}>Cancel</button><button className="primary" onClick={confirmWorker} disabled={Boolean(runningStage)}><Check size={16} />Add at this position</button></div></aside>
+          </div>
+        </section>
+      </div>}
     </div>
   )
 }

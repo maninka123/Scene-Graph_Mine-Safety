@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
-export default function PointCloud({ cloud, nodes, mode, showBoxes, selectedId, onSelect }) {
+export default function PointCloud({ cloud, nodes, mode, showBoxes, selectedId, onSelect, placementMode = false, placementZ = 0, onPlace }) {
   const mountRef = useRef(null)
 
   useEffect(() => {
@@ -57,15 +57,30 @@ export default function PointCloud({ cloud, nodes, mode, showBoxes, selectedId, 
 
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
+    let pointerStart = null
+    const pointerDown = (event) => {
+      pointerStart = { x: event.clientX, y: event.clientY }
+    }
     const pick = (event) => {
+      if (pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 5) {
+        pointerStart = null
+        return
+      }
+      pointerStart = null
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(pointer, camera)
       const hit = raycaster.intersectObjects(boxes)[0]
-      if (hit?.object?.userData?.nodeId) onSelect(hit.object.userData.nodeId)
+      if (!placementMode && hit?.object?.userData?.nodeId) onSelect?.(hit.object.userData.nodeId)
+      if (placementMode && onPlace) {
+        const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -placementZ)
+        const position = new THREE.Vector3()
+        if (raycaster.ray.intersectPlane(plane, position)) onPlace([position.x, position.y, placementZ])
+      }
     }
-    renderer.domElement.addEventListener('pointerdown', pick)
+    renderer.domElement.addEventListener('pointerdown', pointerDown)
+    renderer.domElement.addEventListener('pointerup', pick)
 
     const resize = () => {
       const { clientWidth, clientHeight } = mount
@@ -87,7 +102,8 @@ export default function PointCloud({ cloud, nodes, mode, showBoxes, selectedId, 
     return () => {
       cancelAnimationFrame(frame)
       observer.disconnect()
-      renderer.domElement.removeEventListener('pointerdown', pick)
+      renderer.domElement.removeEventListener('pointerdown', pointerDown)
+      renderer.domElement.removeEventListener('pointerup', pick)
       controls.dispose()
       geometry.dispose()
       material.dispose()
@@ -95,7 +111,7 @@ export default function PointCloud({ cloud, nodes, mode, showBoxes, selectedId, 
       renderer.dispose()
       mount.replaceChildren()
     }
-  }, [cloud, mode, nodes, onSelect, selectedId, showBoxes])
+  }, [cloud, mode, nodes, onPlace, onSelect, placementMode, placementZ, selectedId, showBoxes])
 
-  return <div className="point-cloud" ref={mountRef} aria-label="Interactive three-dimensional point cloud" />
+  return <div className={`point-cloud ${placementMode ? 'placing' : ''}`} ref={mountRef} aria-label={placementMode ? 'Click the three-dimensional scene to place the worker' : 'Interactive three-dimensional point cloud'} />
 }
