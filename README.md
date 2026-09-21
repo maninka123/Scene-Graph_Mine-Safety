@@ -45,6 +45,14 @@ evidence, execution timing, optional local Qwen reasoning, and local point-cloud
 
 ![MineGraph Studio single-scene pipeline demonstrator](assets/figures/minegraph-studio.png)
 
+### Start on Windows
+
+Double-click **`Start MineGraph Studio.cmd`** in the repository folder. On the first launch it installs any
+missing app packages and builds the web interface; later launches reuse that build. The browser opens when
+the local API is ready. Keep the launcher window open while using the app and press `Ctrl+C` to stop it.
+
+### Manual start
+
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate
