@@ -9,7 +9,7 @@
 ![Graphical abstract of the perception-to-reasoning pipeline](assets/figures/Graphical%20Abstract_final.png)
 
 This repository reconstructs the software pipeline described in **“From 3D Perception to Safety
-Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring.”** It provides the
+Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring.”** It provides the
 architecture, training and inference entry points, scene and temporal graph construction, deterministic
 safety rules, grounded local-LLM reasoning, GraphRAG memory, tests, and an interactive visualiser. It does
 not include regenerated experiment results or ablation studies.
@@ -26,12 +26,12 @@ graph and is not connected to a simulator, live sensors, alarms, machinery, or o
 | Stage | Implementation |
 | --- | --- |
 | Sparse 3D perception | XYZRGB sparse input, MinkUNet encoder–decoder, shared 96-D representation, contrastive and semantic heads |
-| Uncertainty | Predictive entropy, morphological closing, DBSCAN proposals, and paper merge criteria |
+| Uncertainty | Predictive entropy, morphological closing, removal of connected components smaller than 20 voxels, DBSCAN proposals, and paper merge criteria |
 | Scene graph | Object/anomaly nodes and directed proximity relations within 8 m |
 | Temporal graph | Hungarian association, 10 s rolling history, velocity, and movement state |
 | Safety rules | Proximity, TTC, blind spot, congestion, and low visibility |
 | Context reasoning | Appendix A prompt contract with schema and object-ID validation |
-| Longitudinal memory | Selective GraphRAG retrieval with local Qdrant, embedding, and reranking adapters |
+| Longitudinal memory | Selective GraphRAG retrieval through LlamaIndex and local Qdrant with Qwen3 embedding and reranking |
 
 All traceable constants are collected in [`configs/paper.yaml`](configs/paper.yaml). The executable modules
 live under [`src/mine_safety`](src/mine_safety), and the training/inference entry points are in
@@ -89,13 +89,15 @@ For point-cloud training and inference, install PyTorch and a compatible Minkows
 ```bash
 pip install -e ".[pointcloud]"
 python scripts/train_contrastive.py data/unlabelled.jsonl
-python scripts/train_semantic.py data/labelled.jsonl
+python scripts/train_semantic.py data/train.jsonl --val-manifest data/val.jsonl
 python scripts/infer_point_cloud.py data/example.pcd \
   --checkpoint checkpoints/semantic_nine_class.pt
 ```
 
 Training `.npz` files contain `points [N,3]`, `colors [N,3]` in `[0,1]`, and supervised files also contain
 integer `labels [N]`. JSONL manifests use `{"path":"relative/or/absolute/scene.npz"}`.
+Keep training and validation point clouds in separate manifests; checkpoint selection and early stopping
+use validation loss.
 
 ## Paper figures
 
@@ -132,7 +134,7 @@ Paper: [arXiv:2606.03460](https://arxiv.org/abs/2606.03460) ·
 
 ```bibtex
 @misc{ranasinghe2026from3d,
-  title         = {From 3D Perception to Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring},
+  title         = {From 3D Perception to Safety Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring},
   author        = {Ranasinghe, Pasindu and Raval, Simit and Patra, Dibyayan and Banerjee, Bikram and Canbulat, Ismet},
   year          = {2026},
   eprint        = {2606.03460},

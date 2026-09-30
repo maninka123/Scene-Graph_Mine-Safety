@@ -9,7 +9,7 @@ authors:
 repository-code: "https://github.com/maninka123/Scene-Graph_Mine-Safety"
 preferred-citation:
   type: article
-  title: "From 3D Perception to Safety Reasoning: A Graph-Based Framework for Real-Time Underground Mine Monitoring"
+  title: "From 3D Perception to Safety Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring"
   authors:
     - family-names: Ranasinghe
       given-names: Pasindu

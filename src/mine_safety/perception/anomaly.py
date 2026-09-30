@@ -4,7 +4,7 @@ from itertools import combinations
 from math import acos, degrees
 
 import numpy as np
-from scipy.ndimage import binary_closing
+from scipy.ndimage import binary_closing, generate_binary_structure, label
 from sklearn.cluster import DBSCAN
 
 from mine_safety.schemas import SceneNode
@@ -59,6 +59,29 @@ def _merge_clusters(
     return clusters
 
 
+def _remove_small_components(coords: np.ndarray, minimum_voxels: int) -> np.ndarray:
+    """Keep 26-connected voxel components that meet the size threshold."""
+    remaining = set(map(tuple, coords.tolist()))
+    kept: list[tuple[int, int, int]] = []
+    neighbours = [
+        (dx, dy, dz)
+        for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)
+        if (dx, dy, dz) != (0, 0, 0)
+    ]
+    while remaining:
+        seed = remaining.pop()
+        component = [seed]
+        for point in component:
+            for offset in neighbours:
+                adjacent = tuple(point[axis] + offset[axis] for axis in range(3))
+                if adjacent in remaining:
+                    remaining.remove(adjacent)
+                    component.append(adjacent)
+        if len(component) >= minimum_voxels:
+            kept.extend(component)
+    return np.asarray(kept, dtype=int).reshape(-1, 3)
+
+
 def anomaly_nodes_from_probabilities(
     points: np.ndarray,
     probabilities: np.ndarray,
@@ -72,7 +95,7 @@ def anomaly_nodes_from_probabilities(
     voxel_size_m: float = 0.01,
     closing_iterations: int = 1,
 ) -> list[SceneNode]:
-    """Threshold entropy, close the voxel mask, DBSCAN cluster, and merge proposals."""
+    """Threshold entropy, close, filter connected components, cluster, and merge."""
     xyz = np.asarray(points, dtype=float)
     entropy = predictive_entropy(probabilities)
     high = xyz[entropy > entropy_threshold]
@@ -80,8 +103,8 @@ def anomaly_nodes_from_probabilities(
     original_high_entropy = entropy[entropy > entropy_threshold]
     if len(high) < minimum_voxels:
         return []
+    coords = np.unique(np.floor(high / voxel_size_m).astype(int), axis=0)
     if closing_iterations > 0:
-        coords = np.floor(high / voxel_size_m).astype(int)
         lower, upper = coords.min(axis=0), coords.max(axis=0)
         shape = tuple((upper - lower + 3).tolist())
         # Bound allocation for unusual, widely separated uncertainty points.
@@ -90,9 +113,19 @@ def anomaly_nodes_from_probabilities(
             local = coords - lower + 1
             occupancy[tuple(local.T)] = True
             closed = binary_closing(occupancy, iterations=closing_iterations)
-            closed_coords = np.argwhere(closed) + lower - 1
-            high = (closed_coords.astype(float) + 0.5) * voxel_size_m
-    labels = DBSCAN(eps=epsilon_m, min_samples=minimum_voxels).fit_predict(high)
+            component_labels, count = label(closed, structure=generate_binary_structure(3, 3))
+            sizes = np.bincount(component_labels.ravel())
+            valid = np.zeros(count + 1, dtype=bool)
+            valid[1:] = sizes[1:] >= minimum_voxels
+            coords = np.argwhere(valid[component_labels]) + lower - 1
+        else:
+            coords = _remove_small_components(coords, minimum_voxels)
+    else:
+        coords = _remove_small_components(coords, minimum_voxels)
+    if not len(coords):
+        return []
+    high = (coords.astype(float) + 0.5) * voxel_size_m
+    labels = DBSCAN(eps=epsilon_m, min_samples=1).fit_predict(high)
     clusters = [high[labels == label] for label in sorted(set(labels)) if label >= 0]
     clusters = _merge_clusters(clusters, merge_boundary_m, merge_centroid_m, merge_orientation_degrees)
     nodes: list[SceneNode] = []

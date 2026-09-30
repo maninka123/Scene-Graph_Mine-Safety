@@ -122,7 +122,7 @@ class InMemoryGraphArchive:
 
 
 class QdrantGraphArchive:
-    """Production-ready local Qdrant adapter using Qwen3 embedding/reranking models."""
+    """Local LlamaIndex/Qdrant archive using Qwen3 embedding and reranking."""
 
     def __init__(
         self,
@@ -131,20 +131,19 @@ class QdrantGraphArchive:
         embedding_model: str = "Qwen/Qwen3-Embedding-0.6B",
         reranker_model: str = "Qwen/Qwen3-Reranker-0.6B",
     ) -> None:
-        from qdrant_client import QdrantClient, models
+        from llama_index.core.schema import TextNode
+        from llama_index.core.vector_stores import VectorStoreQuery
+        from llama_index.vector_stores.qdrant import QdrantVectorStore
+        from qdrant_client import QdrantClient
         from sentence_transformers import CrossEncoder, SentenceTransformer
 
         self.client = QdrantClient(path=path)
         self.collection = collection
-        self.models = models
+        self.text_node = TextNode
+        self.vector_query = VectorStoreQuery
+        self.store = QdrantVectorStore(client=self.client, collection_name=collection)
         self.encoder = SentenceTransformer(embedding_model, trust_remote_code=True)
         self.reranker = CrossEncoder(reranker_model, trust_remote_code=True)
-        dimension = int(self.encoder.get_sentence_embedding_dimension())
-        if not self.client.collection_exists(collection):
-            self.client.create_collection(
-                collection_name=collection,
-                vectors_config=models.VectorParams(size=dimension, distance=models.Distance.COSINE),
-            )
 
     def add(self, graph: SceneGraph, alerts: list[SafetyAlert], result: ReasoningResult | None = None) -> dict:
         summary = summarise_graph(graph, alerts, result)
@@ -159,25 +158,23 @@ class QdrantGraphArchive:
             **metadata,
         }
         vector = self.encoder.encode(summary, normalize_embeddings=True).tolist()
-        self.client.upsert(
-            collection_name=self.collection,
-            points=[self.models.PointStruct(id=point_id, vector=vector, payload=payload)],
-        )
+        self.store.add([self.text_node(id_=point_id, text=summary, metadata=payload, embedding=vector)])
         return payload
 
     def search(self, summary: str, top_k: int = 5, metadata: dict | None = None) -> list[dict]:
         vector = self.encoder.encode(summary, normalize_embeddings=True).tolist()
-        candidates = self.client.query_points(
-            collection_name=self.collection, query=vector, limit=max(top_k * 8, top_k), with_payload=True,
-        ).points
+        result = self.store.query(self.vector_query(
+            query_embedding=vector, similarity_top_k=max(top_k * 8, top_k),
+        ))
+        candidates = list(zip(result.nodes or [], result.similarities or []))
         if metadata is not None:
-            candidates = [item for item in candidates if _linked(metadata, dict(item.payload))]
+            candidates = [item for item in candidates if _linked(metadata, item[0].metadata)]
         if not candidates:
             return []
-        pairs = [(summary, str(item.payload.get("summary", ""))) for item in candidates]
+        pairs = [(summary, node.text) for node, _ in candidates]
         scores = self.reranker.predict(pairs)
         ranked = sorted(zip(scores, candidates), key=lambda pair: float(pair[0]), reverse=True)[:top_k]
         return [
-            {**dict(item.payload), "similarity": float(item.score), "reranker_score": float(score)}
-            for score, item in ranked
+            {**node.metadata, "similarity": float(similarity), "reranker_score": float(score)}
+            for score, (node, similarity) in ranked
         ]
