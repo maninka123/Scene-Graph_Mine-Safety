@@ -36,7 +36,7 @@ class MineSafetyPipeline:
         )
         self.rules = SafetyRuleEngine(self.config["rules"])
         self.reasoner = reasoner
-        self.archive = archive or InMemoryGraphArchive()
+        self.archive = archive if archive is not None else InMemoryGraphArchive()
 
     def process_graph(self, graph: SceneGraph, run_llm: bool = False) -> dict:
         tracked = self.tracker.update(graph)

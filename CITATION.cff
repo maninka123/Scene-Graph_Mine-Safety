@@ -22,5 +22,7 @@ preferred-citation:
     - family-names: Canbulat
       given-names: Ismet
   year: 2026
-  doi: "10.48550/arXiv.2606.03460"
-  url: "https://arxiv.org/abs/2606.03460"
+  journal: "Expert Systems with Applications"
+  start: "134601"
+  doi: "10.1016/j.eswa.2026.134601"
+  url: "https://www.sciencedirect.com/science/article/pii/S0957417426035050"

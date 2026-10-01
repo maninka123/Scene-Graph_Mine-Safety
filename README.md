@@ -1,18 +1,21 @@
-# From 3D Perception to Safety Reasoning
+# [From 3D Perception to Safety Reasoning](https://www.sciencedirect.com/science/article/pii/S0957417426035050)
 
-> A self-contained, paper-aligned reference implementation for graph-based underground mine monitoring.
+> Research code for 3D perception, scene graphs, and safety reasoning in underground mines.
 
-[![Paper](https://img.shields.io/badge/arXiv-2606.03460-b31b1b.svg)](https://arxiv.org/abs/2606.03460)
+[![Published in](https://img.shields.io/badge/Published%20in-Expert%20Systems%20with%20Applications-0072b1.svg)](https://www.sciencedirect.com/journal/expert-systems-with-applications)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776ab.svg)](https://www.python.org/)
-[![Tests](https://github.com/maninka123/Scene-Graph_Mine-Safety/actions/workflows/tests.yml/badge.svg)](https://github.com/maninka123/Scene-Graph_Mine-Safety/actions/workflows/tests.yml)
+[![Qwen](https://img.shields.io/badge/LLM-Qwen2.5--3B-6f42c1.svg)](configs/paper.yaml)
+[![MinkowskiEngine](https://img.shields.io/badge/3D%20perception-MinkowskiEngine-2b6cb0.svg)](src/mine_safety/perception/network.py)
+[![ROS-free demo](https://img.shields.io/badge/demo-ROS--free-2c7a7b.svg)](#minegraph-studio)
 
 ![Graphical abstract of the perception-to-reasoning pipeline](assets/figures/Graphical%20Abstract_final.png)
 
-This repository reconstructs the software pipeline described in **“From 3D Perception to Safety
-Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring.”** It provides the
-architecture, training and inference entry points, scene and temporal graph construction, deterministic
-safety rules, grounded local-LLM reasoning, GraphRAG memory, tests, and an interactive visualiser. It does
-not include regenerated experiment results or ablation studies.
+This repository contains the software pipeline for **[“From 3D Perception to Safety Reasoning: An
+Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring”](https://www.sciencedirect.com/science/article/pii/S0957417426035050)**, published in *Expert Systems
+with Applications* (2025 Impact Factor: 9.4; CiteScore: 17.0; Scopus Q1, 97th percentile).
+The repository provides the architecture, training and inference entry points, scene and temporal
+graph construction, deterministic safety rules, grounded local-LLM reasoning, GraphRAG memory, tests, and
+an interactive visualiser. Experimental results and ablation studies are not included in this repository.
 
 ## Scope and safety
 
@@ -84,6 +87,15 @@ pip install -e ".[llm]"
 mine-safety examples/scene_graph.json --llm
 ```
 
+To use persistent historical memory with Qwen3 embeddings, LlamaIndex, Qdrant, and Qwen3 reranking:
+
+```bash
+mine-safety examples/scene_graph.json --llm --qdrant-path ./memory/qdrant
+```
+
+Reuse the same Qdrant path across runs to retrieve earlier graph memories. Without `--qdrant-path`,
+the CLI uses the lightweight in-memory archive for demonstrations and tests.
+
 For point-cloud training and inference, install PyTorch and a compatible MinkowskiEngine build first:
 
 ```bash
@@ -129,18 +141,19 @@ Qwen inference, and Qdrant require a suitable backend and cannot run directly in
 
 ## Cite
 
-Paper: [arXiv:2606.03460](https://arxiv.org/abs/2606.03460) ·
-[DOI: 10.48550/arXiv.2606.03460](https://doi.org/10.48550/arXiv.2606.03460)
+Published in *[Expert Systems with Applications](https://www.sciencedirect.com/journal/expert-systems-with-applications)*
+(October 2026), article 134601. [Read the paper on ScienceDirect](https://www.sciencedirect.com/science/article/pii/S0957417426035050)
+· [DOI: 10.1016/j.eswa.2026.134601](https://doi.org/10.1016/j.eswa.2026.134601).
 
 ```bibtex
-@misc{ranasinghe2026from3d,
-  title         = {From 3D Perception to Safety Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring},
-  author        = {Ranasinghe, Pasindu and Raval, Simit and Patra, Dibyayan and Banerjee, Bikram and Canbulat, Ismet},
-  year          = {2026},
-  eprint        = {2606.03460},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.CV},
-  doi           = {10.48550/arXiv.2606.03460}
+@article{ranasinghe2026from3d,
+  title   = {From 3D Perception to Safety Reasoning: An Intelligent Hybrid Framework for Real-Time Underground Mine Monitoring},
+  author  = {Ranasinghe, Pasindu and Raval, Simit and Patra, Dibyayan and Banerjee, Bikram and Canbulat, Ismet},
+  journal = {Expert Systems with Applications},
+  year    = {2026},
+  eid     = {134601},
+  doi     = {10.1016/j.eswa.2026.134601},
+  url     = {https://www.sciencedirect.com/science/article/pii/S0957417426035050}
 }
 ```
 
